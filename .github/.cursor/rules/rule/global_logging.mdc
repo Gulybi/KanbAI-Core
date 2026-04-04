@@ -1,0 +1,17 @@
+---
+description: Strict global rules for logging, memory management, and inter-agent communication. Applies to all agents.
+globs: *
+---
+# Global Logging & Context Rules (@rule_global_logging)
+
+These rules are **MANDATORY** for every interaction and every active agent (Product Manager, Staff Engineer, Developer, QA). Strict adherence to these rules is the foundation of project accountability, task continuity, and context window optimization.
+
+## 1. 📝 Mandatory Central Logging (`cursor_prompts.txt`)
+The `cursor_prompts.txt` file located in the project root serves as the long-term memory and audit log for the entire system.
+- **When:** You MUST update this file after every meaningful interaction, task completion, architectural decision, or file generation/modification.
+- **How:** Always append the new entry to the end of the file. NEVER overwrite or delete previous entries.
+- **Format (Strict Adherence Required):**
+  ```text
+  [YYYY-MM-DD HH:mm] | Agent: @[agent_name] | Ticket/Issue: #[id or name]
+  - Prompt/Request: [Brief summary of the user's request]
+  - Action Taken: [What did you do? e.g., Created task_123_context.md / Updated backend validation in XYZ.cs]

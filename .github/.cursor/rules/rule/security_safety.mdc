@@ -1,0 +1,24 @@
+---
+description: Mandatory security protocols, input validation rules, and secret management. Applies to all code modifications.
+globs: **/*.cs
+---
+# Security & Safety Standards (@rule_security_safety)
+
+These rules dictate the security baseline for all development. Security is non-negotiable and must be prioritized in every implementation.
+
+## 1. 🛑 Secret Management
+- **No Hardcoded Secrets:** NEVER hardcode passwords, API keys, JWT secrets, connection strings, or any sensitive tokens in the source code.
+- **Configuration:** Always retrieve secrets via `IConfiguration`, environment variables, or a secure secret manager.
+
+## 2. 🛡️ Input Validation & Sanitization
+- **Never Trust Client Input:** All incoming data from APIs, UI, or external systems must be strictly validated before any business logic is executed.
+- **Validation Layers:** Use standard libraries (e.g., FluentValidation or DataAnnotations) to validate DTOs, Commands, and Queries.
+- **Injection Prevention:** Rely on Entity Framework Core's parameterized queries by default. If raw SQL is absolutely necessary (e.g., using `.FromSqlRaw`), NEVER use string interpolation or concatenation for user inputs.
+
+## 3. 🤐 Data Privacy & Logging
+- **No PII in Logs:** Ensure that Personally Identifiable Information (PII) such as plain-text passwords, credit card numbers, or sensitive user data is NEVER recorded in application logs.
+- **Secure DTOs:** Never return password hashes, internal system states, or sensitive domain data in API responses. Always map entities to safe DTOs.
+
+## 4. 🌐 Web Security (OWASP Basics)
+- **Authorization & Authentication:** Always ensure proper authorization checks (e.g., `[Authorize]` attributes, MediatR pipeline behaviors, or policy-based checks) are in place before allowing access to resources.
+- **Data Exposure:** Prevent mass assignment vulnerabilities by strictly defining properties in DTOs rather than binding directly to domain entities.
