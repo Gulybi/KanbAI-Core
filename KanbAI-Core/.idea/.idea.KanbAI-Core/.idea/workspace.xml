@@ -7,12 +7,33 @@
   <component name="AutoImportSettings">
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
+  <component name="CMakeProjectFlavorService">
+    <option name="flavorId" value="CMakePlainProjectFlavor" />
+  </component>
+  <component name="CMakeSettings">
+    <configurations />
+  </component>
   <component name="ChangeListManager">
-    <list default="true" id="cc49cec5-9a43-4a0e-b817-c902c3146857" name="Changes" comment="" />
+    <list default="true" id="71311f69-0d5e-49b0-94e1-1250f099263b" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.aiassistant/rules/code_standards.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.aiassistant/rules/global_logging.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.aiassistant/rules/security_safety.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.aiassistant/rules/testing_observability.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.idea.KanbAI-Core/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.KanbAI-Core/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="CopilotPersistence">
+    <persistenceIdMap>
+      <entry key="_C:/Users/gulyb/OneDrive/Desktop/Thesis/KanbAI-Core/KanbAI-Core" value="3BuC65pfeMGkvWx2XUFXe6Tjhr6" />
+    </persistenceIdMap>
+  </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="11" />
+    <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
@@ -21,10 +42,11 @@
     <commands />
     <urls />
   </component>
-  <component name="ProjectColorInfo">{
-  &quot;associatedIndex&quot;: 5
-}</component>
-  <component name="ProjectId" id="3BUqm0Gzllp3kGiOadUadn50A1o" />
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 6,
+  "fromUser": false
+}]]></component>
+  <component name="ProjectId" id="3BuC65pfeMGkvWx2XUFXe6Tjhr6" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
@@ -34,15 +56,19 @@
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.MCP Project settings loaded": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
     "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "cidr.known.project.marker": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
     "git-widget-placeholder": "main",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
     "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "preferences.pluginManager",
+    "settings.editor.selected.configurable": "ml.llm.LLMAiRulesSettingsProvider",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
@@ -82,13 +108,12 @@
   </component>
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
-      <changelist id="cc49cec5-9a43-4a0e-b817-c902c3146857" name="Changes" comment="" />
-      <created>1774554155200</created>
+      <changelist id="71311f69-0d5e-49b0-94e1-1250f099263b" name="Changes" comment="" />
+      <created>1775329392901</created>
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
-      <updated>1774554155200</updated>
-      <workItem from="1774554155553" duration="159000" />
-      <workItem from="1774558816942" duration="2534000" />
+      <updated>1775329392901</updated>
+      <workItem from="1775329396298" duration="326000" />
     </task>
     <servers />
   </component>
@@ -116,6 +141,10 @@
         </breakpoint>
       </breakpoints>
     </breakpoint-manager>
+  </component>
+  <component name="XSLT-Support.FileAssociations.UIState">
+    <expand />
+    <select />
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>
