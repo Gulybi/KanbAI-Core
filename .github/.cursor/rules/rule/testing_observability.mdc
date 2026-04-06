@@ -16,6 +16,7 @@ These rules apply whenever writing automated tests or implementing logging withi
 - **Unit vs. Integration:** Unit tests must be completely isolated. NEVER hit a real database, file system, or external API in a unit test.
 - **Mocking Framework:** Use the project's standard mocking library (e.g., Moq or NSubstitute) to mock dependencies (`IRepository`, external services).
 - **Setup Specificity:** Be specific when setting up mocks. Verify that expected methods were called with the correct parameters rather than just using `It.IsAny()`.
+- **Integration Tests:** For end-to-end tests using `WebApplicationFactory<Program>`, follow the patterns in `@rule_integration_testing` (auth bypass, test endpoint injection, known TestServer limitations). DO NOT reinvent infrastructure that is already documented there.
 
 ## 3. 🔭 Observability & Structured Logging
 - **Structured Logs:** Always use semantic, structured logging via `ILogger<T>`. 
