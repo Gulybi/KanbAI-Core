@@ -26,6 +26,8 @@ Based on the context, design the technical solution and document it by creating 
 - **API Contracts:** REST API endpoints (Method, Route, Status Codes) and exact C# `record` definitions for DTOs (Requests/Responses).
 - **Application Layer Boundaries:** MediatR `IRequest` and `IRequestHandler` signatures, or Service interfaces.
 - **Implementation Steps:** A logical, numbered checklist for the `@agent_developer` to follow, referencing `@rule_code_standards`.
+- **Test Infrastructure Setup (for integration tests):** If the QA section prescribes integration tests using `WebApplicationFactory<Program>`, you MUST provide a **working, validated `CreateClient` helper method** that handles auth bypass and test endpoint injection per `@rule_integration_testing`. Do NOT give conceptual hints (e.g., "bypass auth somehow") — provide the exact code. The QA agent will use this snippet directly; an incorrect snippet causes expensive retry loops that burn the context window.
+- **Known Middleware/Pipeline Caveats:** Document any middleware (auth handlers, exception pages, HTTPS redirection) that may behave differently under `TestServer` vs Kestrel. Reference `@rule_integration_testing` §1 for the project's known limitations table.
 
 ### 3. 💾 Log and Hand-off
 - **Mandatory:** Append your actions to `cursor_prompts.txt` according to the `@rule_global_logging` standards.
