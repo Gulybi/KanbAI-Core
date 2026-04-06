@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.EntityFrameworkCore;
 using KanbAI_Core.Data;
+using KanbAI_Core.DTOs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -44,7 +45,7 @@ app.MapGet("/weatherforecast", () =>
                     summaries[Random.Shared.Next(summaries.Length)]
                 ))
             .ToArray();
-        return forecast;
+        return ApiResponse<WeatherForecast[]>.Ok(forecast);
     })
     .WithName("GetWeatherForecast");
 
