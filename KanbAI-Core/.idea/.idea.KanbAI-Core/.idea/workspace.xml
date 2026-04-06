@@ -15,11 +15,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="71311f69-0d5e-49b0-94e1-1250f099263b" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.aiassistant/rules/code_standards.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.aiassistant/rules/global_logging.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.aiassistant/rules/security_safety.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.aiassistant/rules/testing_observability.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/.idea.KanbAI-Core/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.KanbAI-Core/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/KanbAI-Core.sln" beforeDir="false" afterPath="$PROJECT_DIR$/KanbAI-Core.sln" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/KanbAI-Core/KanbAI-Core.csproj" beforeDir="false" afterPath="$PROJECT_DIR$/KanbAI-Core/KanbAI-Core.csproj" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/KanbAI-Core/Program.cs" beforeDir="false" afterPath="$PROJECT_DIR$/KanbAI-Core/Program.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/KanbAI-Core/appsettings.Development.json" beforeDir="false" afterPath="$PROJECT_DIR$/KanbAI-Core/appsettings.Development.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../cursor_prompts.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../cursor_prompts.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -32,7 +33,7 @@
     </persistenceIdMap>
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="11" />
+    <option name="cachedIndexableFilesCount" value="14" />
     <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
   </component>
   <component name="Git.Settings">
@@ -41,6 +42,9 @@
   <component name="McpProjectServerCommands">
     <commands />
     <urls />
+  </component>
+  <component name="ProblemsViewState">
+    <option name="selectedTabId" value="Toolset" />
   </component>
   <component name="ProjectColorInfo"><![CDATA[{
   "associatedIndex": 6,
@@ -56,13 +60,14 @@
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.MCP Project settings loaded": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
     "RunOnceActivity.cidr.known.project.marker": "true",
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.readMode.enableVisualFormatting": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
     "cidr.known.project.marker": "true",
     "codeWithMe.voiceChat.enabledByDefault": "false",
-    "git-widget-placeholder": "main",
+    "git-widget-placeholder": "6-initialize-net-web-api-and-project-structure",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -113,7 +118,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1775329392901</updated>
-      <workItem from="1775329396298" duration="326000" />
+      <workItem from="1775329396298" duration="4135000" />
     </task>
     <servers />
   </component>
