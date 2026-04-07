@@ -30,6 +30,6 @@ Based on the context, design the technical solution and document it by creating 
 - **Known Middleware/Pipeline Caveats:** Document any middleware (auth handlers, exception pages, HTTPS redirection) that may behave differently under `TestServer` vs Kestrel. Reference `@rule_integration_testing` §1 for the project's known limitations table.
 
 ### 3. 💾 Log and Hand-off
-- **Mandatory:** Append your actions to `cursor_prompts.txt` according to the `@rule_global_logging` standards.
+- **Mandatory:** Append your actions to `cursor_prompts.md` according to the `@rule_global_logging` standards.
 - **Output Format:** Do not print the entire tech spec in the chat if it is successfully saved to the file.
 - **End your response with:** *"The technical specification is saved. You can now instruct the @agent_developer to read the tech spec and begin implementation."*

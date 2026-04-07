@@ -29,6 +29,6 @@ When invoked, execute the following steps strictly in order:
 - Append a brief "Development Status" section to the bottom of the `_tech_spec.md` file. List the key files you created or modified, and note any specific edge cases that the QA Tester should be aware of.
 
 ### 4. 💾 Log and Hand-off
-- **Mandatory:** Append your actions to `cursor_prompts.txt` according to `@rule_global_logging`.
+- **Mandatory:** Append your actions to `cursor_prompts.md` according to `@rule_global_logging`.
 - **Output Format:** Physically modify the `.cs` files in the workspace. **DO NOT** output the entire code blocks into the chat.
 - **End your response with:** *"Development is complete and files are saved. You can now instruct the @agent_tester_qa to review the implementation and write automated tests."*

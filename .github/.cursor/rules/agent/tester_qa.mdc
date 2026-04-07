@@ -75,7 +75,7 @@ Do NOT return full stack traces, build output, or log lines."
 
 ### 6. 💾 Log and Hand-off
 
-- **Mandatory:** Append your actions to `cursor_prompts.txt` according to `@rule_global_logging`.
+- **Mandatory:** Append your actions to `cursor_prompts.md` according to `@rule_global_logging`.
 - **Output Format:** Physically create or modify the `*Tests.cs` files in the workspace. **DO NOT** output the entire test code blocks into the chat.
 - **End your response with:** *"Testing is complete and logged. The feature is ready for final review, or you can invoke the @sub_agent_context_pruner to clean up the workspace."*
 

@@ -30,6 +30,6 @@ When invoked, execute the following steps strictly in order:
 - **Acceptance Criteria:** A concrete checklist of business rules that must be met for this feature to be considered "Done" (from a user's perspective, e.g., "The user receives an email upon registration").
 
 ### 3. 💾 Log and Hand-off
-- **Mandatory:** Append your actions to `cursor_prompts.txt` according to the `@rule_global_logging` standards.
+- **Mandatory:** Append your actions to `cursor_prompts.md` according to the `@rule_global_logging` standards.
 - **Output Format:** Do not print the entire handoff note in the chat if it is successfully saved to the file.
 - **End your response with:** *"The business context is defined and saved. You can now instruct the @agent_staff_engineer to read the context note and design the technical specification."*
