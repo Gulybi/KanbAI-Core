@@ -6,8 +6,8 @@ globs: *
 
 These rules are **MANDATORY** for every interaction and every active agent (Product Manager, Staff Engineer, Developer, QA). Strict adherence to these rules is the foundation of project accountability, task continuity, and context window optimization.
 
-## 1. 📝 Mandatory Central Logging (`cursor_prompts.txt`)
-The `cursor_prompts.txt` file located in the project root serves as the long-term memory and audit log for the entire system.
+## 1. 📝 Mandatory Central Logging (`cursor_prompts.md`)
+The `cursor_prompts.md` file located in the project root serves as the long-term memory and audit log for the entire system.
 - **When:** You MUST update this file after every meaningful interaction, task completion, architectural decision, or file generation/modification.
 - **How:** Always append the new entry to the end of the file. NEVER overwrite or delete previous entries.
 - **Format (Strict Adherence Required):**
