@@ -140,4 +140,36 @@ public class ApplicationDbContextTests
         context.Users.Should().NotBeNull();
         context.Users.Should().BeAssignableTo<DbSet<User>>();
     }
+
+    [Fact]
+    public void ApplicationDbContext_ProjectsDbSet_IsNotNull()
+    {
+        // Arrange
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: "TestDb_ProjectsDbSet")
+            .Options;
+
+        // Act
+        using var context = new ApplicationDbContext(options);
+
+        // Assert
+        context.Projects.Should().NotBeNull();
+        context.Projects.Should().BeAssignableTo<DbSet<Project>>();
+    }
+
+    [Fact]
+    public void ApplicationDbContext_ProjectMembersDbSet_IsNotNull()
+    {
+        // Arrange
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: "TestDb_ProjectMembersDbSet")
+            .Options;
+
+        // Act
+        using var context = new ApplicationDbContext(options);
+
+        // Assert
+        context.ProjectMembers.Should().NotBeNull();
+        context.ProjectMembers.Should().BeAssignableTo<DbSet<ProjectMember>>();
+    }
 }

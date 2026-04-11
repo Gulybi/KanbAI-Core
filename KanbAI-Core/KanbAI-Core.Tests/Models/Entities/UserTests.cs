@@ -95,6 +95,17 @@ public class UserTests
     }
 
     [Fact]
+    public void User_ProjectMembershipsProperty_IsCollectionOfProjectMember()
+    {
+        // Arrange
+        var property = typeof(User).GetProperty(nameof(User.ProjectMemberships));
+
+        // Act & Assert
+        property.Should().NotBeNull();
+        property!.PropertyType.Should().BeAssignableTo(typeof(ICollection<ProjectMember>));
+    }
+
+    [Fact]
     public void User_CastToBaseEntity_RetainsPropertyValues()
     {
         // Arrange
