@@ -1,0 +1,25 @@
+---
+description: Strict coding standards, .NET best practices, and architecture guidelines. Applies whenever writing or refactoring C# code.
+globs: **/*.cs
+---
+# .NET Coding Standards & Best Practices (@rule_code_standards)
+
+These rules dictate how C# code should be written, structured, and optimized. They apply strictly to any agent modifying or generating `.cs` files (e.g., Developer, QA Tester).
+
+## 1. 🏗️ Modern C# Features & Clean Code
+- **C# 10+ Features:** Always utilize modern C# capabilities. Use file-scoped namespaces, implicit usings, global usings, and `record` types for DTOs and value objects[cite: 34].
+- **YAGNI (You Aren't Gonna Need It):** Do not over-engineer. If a feature requires a simple single-method update, do not generate complex design patterns or new layers unless explicitly instructed by the Staff Engineer's `_tech_spec.md`.
+- **Dependency Injection:** Strictly use constructor injection for services and repositories. Never instantiate dependencies using the `new` keyword[cite: 35].
+
+## 2. ⚡ Performance & Async/Await Rules
+- **Asynchronous Operations:** All I/O operations (database calls, file reads, external API requests) MUST be asynchronous.
+- **No Blocking:** NEVER use `.Result`, `.Wait()`, or `Task.Run()` to block async code[cite: 32]. Always use `await`.
+- **Collections:** Avoid multiple enumerations of `IEnumerable`. Materialize to a `List` or `Array` if the collection needs to be accessed more than once[cite: 73].
+
+## 3. 🗄️ Entity Framework Core Optimization
+- **Read-Only Queries:** ALWAYS use `.AsNoTracking()` for queries that only read data and do not intend to update the entities[cite: 32].
+- **N+1 Problem Prevention:** ALWAYS prevent N+1 query issues. Use `.Include()` for eager loading or `.Select()` projections when fetching related data[cite: 33].
+
+## 4. 🛡️ Error Handling
+- **No Swallowed Exceptions:** Never use empty `catch` blocks or `catch (Exception ex)` without properly rethrowing or logging the error[cite: 75].
+- **API Layer Exceptions:** Do not use `try-catch (Exception ex)` extensively in the API layer (Controllers/Minimal APIs)[cite: 36]. Rely on global Exception Middleware for unhandled errors.

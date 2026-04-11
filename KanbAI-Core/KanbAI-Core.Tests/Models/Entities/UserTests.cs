@@ -131,4 +131,15 @@ public class UserTests
         baseRef.CreatedAt.Should().Be(created);
         baseRef.UpdatedAt.Should().Be(updated);
     }
+
+    [Fact]
+    public void User_AssignedTasksProperty_IsCollectionOfKanbanTask()
+    {
+        // Arrange
+        var property = typeof(User).GetProperty(nameof(User.AssignedTasks));
+
+        // Act & Assert
+        property.Should().NotBeNull();
+        property!.PropertyType.Should().BeAssignableTo(typeof(ICollection<KanbanTask>));
+    }
 }

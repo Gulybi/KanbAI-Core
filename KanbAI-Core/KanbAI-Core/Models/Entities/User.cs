@@ -10,4 +10,5 @@ public class User : BaseEntity
     public UserRole Role { get; set; }
 
     public ICollection<ProjectMember> ProjectMemberships { get; set; } = new List<ProjectMember>();
+    public ICollection<KanbanTask> AssignedTasks { get; set; } = new List<KanbanTask>();
 }

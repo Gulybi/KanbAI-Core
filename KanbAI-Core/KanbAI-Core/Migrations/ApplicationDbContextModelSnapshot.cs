@@ -22,6 +22,78 @@ namespace KanbAI_Core.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("KanbAI_Core.Models.Entities.BoardColumn", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ColorCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("ColumnOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("BoardColumns");
+                });
+
+            modelBuilder.Entity("KanbAI_Core.Models.Entities.KanbanTask", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AssignedId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ColumnId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Content")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("TaskOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedId");
+
+                    b.HasIndex("ColumnId");
+
+                    b.ToTable("KanbanTasks");
+                });
+
             modelBuilder.Entity("KanbAI_Core.Models.Entities.Project", b =>
                 {
                     b.Property<Guid>("Id")
@@ -116,6 +188,35 @@ namespace KanbAI_Core.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("KanbAI_Core.Models.Entities.BoardColumn", b =>
+                {
+                    b.HasOne("KanbAI_Core.Models.Entities.Project", "Project")
+                        .WithMany("Columns")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("KanbAI_Core.Models.Entities.KanbanTask", b =>
+                {
+                    b.HasOne("KanbAI_Core.Models.Entities.User", "AssignedUser")
+                        .WithMany("AssignedTasks")
+                        .HasForeignKey("AssignedId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("KanbAI_Core.Models.Entities.BoardColumn", "Column")
+                        .WithMany("Tasks")
+                        .HasForeignKey("ColumnId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AssignedUser");
+
+                    b.Navigation("Column");
+                });
+
             modelBuilder.Entity("KanbAI_Core.Models.Entities.ProjectMember", b =>
                 {
                     b.HasOne("KanbAI_Core.Models.Entities.Project", "Project")
@@ -135,13 +236,22 @@ namespace KanbAI_Core.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("KanbAI_Core.Models.Entities.BoardColumn", b =>
+                {
+                    b.Navigation("Tasks");
+                });
+
             modelBuilder.Entity("KanbAI_Core.Models.Entities.Project", b =>
                 {
+                    b.Navigation("Columns");
+
                     b.Navigation("Members");
                 });
 
             modelBuilder.Entity("KanbAI_Core.Models.Entities.User", b =>
                 {
+                    b.Navigation("AssignedTasks");
+
                     b.Navigation("ProjectMemberships");
                 });
 #pragma warning restore 612, 618

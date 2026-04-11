@@ -69,4 +69,15 @@ public class ProjectTests
         project.Members.Should().NotBeNull();
         project.Members.Should().BeEmpty();
     }
+
+    [Fact]
+    public void Project_ColumnsProperty_IsCollectionOfBoardColumn()
+    {
+        // Arrange
+        var property = typeof(Project).GetProperty(nameof(Project.Columns));
+
+        // Act & Assert
+        property.Should().NotBeNull();
+        property!.PropertyType.Should().BeAssignableTo(typeof(ICollection<BoardColumn>));
+    }
 }
