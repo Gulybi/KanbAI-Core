@@ -11,4 +11,5 @@ public class User : BaseEntity
 
     public ICollection<ProjectMember> ProjectMemberships { get; set; } = new List<ProjectMember>();
     public ICollection<KanbanTask> AssignedTasks { get; set; } = new List<KanbanTask>();
+    public ICollection<TaskComment> AuthoredComments { get; set; } = new List<TaskComment>();
 }
