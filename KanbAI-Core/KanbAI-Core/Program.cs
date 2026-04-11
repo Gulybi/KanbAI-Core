@@ -1,4 +1,3 @@
-using Scalar.AspNetCore;
 using KanbAI_Core.DTOs;
 using KanbAI_Core.Extensions;
 
@@ -16,7 +15,11 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
-    app.MapScalarApiReference();
+
+    if (!app.Configuration.GetValue<bool>("Testing:SkipScalar"))
+    {
+        app.MapScalarUi();
+    }
 }
 
 app.UseExceptionHandler();

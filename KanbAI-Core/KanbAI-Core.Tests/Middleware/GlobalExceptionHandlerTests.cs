@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Encodings.Web;
 using FluentAssertions;
 using KanbAI_Core.DTOs;
+using KanbAI_Core.Tests.Fixtures;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -14,11 +15,11 @@ using Microsoft.Extensions.Options;
 
 namespace KanbAI_Core.Tests.Middleware;
 
-public class GlobalExceptionHandlerTests : IClassFixture<WebApplicationFactory<Program>>
+public class GlobalExceptionHandlerTests : IClassFixture<CustomWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly CustomWebApplicationFactory _factory;
 
-    public GlobalExceptionHandlerTests(WebApplicationFactory<Program> factory)
+    public GlobalExceptionHandlerTests(CustomWebApplicationFactory factory)
     {
         _factory = factory;
     }
