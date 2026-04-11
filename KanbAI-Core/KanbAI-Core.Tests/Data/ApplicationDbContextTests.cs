@@ -172,4 +172,36 @@ public class ApplicationDbContextTests
         context.ProjectMembers.Should().NotBeNull();
         context.ProjectMembers.Should().BeAssignableTo<DbSet<ProjectMember>>();
     }
+
+    [Fact]
+    public void ApplicationDbContext_BoardColumnsDbSet_IsNotNull()
+    {
+        // Arrange
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: "TestDb_BoardColumnsDbSet")
+            .Options;
+
+        // Act
+        using var context = new ApplicationDbContext(options);
+
+        // Assert
+        context.BoardColumns.Should().NotBeNull();
+        context.BoardColumns.Should().BeAssignableTo<DbSet<BoardColumn>>();
+    }
+
+    [Fact]
+    public void ApplicationDbContext_KanbanTasksDbSet_IsNotNull()
+    {
+        // Arrange
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: "TestDb_KanbanTasksDbSet")
+            .Options;
+
+        // Act
+        using var context = new ApplicationDbContext(options);
+
+        // Assert
+        context.KanbanTasks.Should().NotBeNull();
+        context.KanbanTasks.Should().BeAssignableTo<DbSet<KanbanTask>>();
+    }
 }
