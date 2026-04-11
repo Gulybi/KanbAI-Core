@@ -44,7 +44,7 @@ public class ProjectTests
     public void Project_AllProperties_HavePublicGettersAndSetters()
     {
         // Arrange
-        var properties = new[] { "Name", "Members", "Id", "CreatedAt", "UpdatedAt" };
+        var properties = new[] { "Name", "Description", "Members", "Columns", "Id", "CreatedAt", "UpdatedAt" };
 
         // Act & Assert
         foreach (var name in properties)
@@ -66,8 +66,11 @@ public class ProjectTests
 
         // Assert
         project.Name.Should().Be(string.Empty);
+        project.Description.Should().BeNull();
         project.Members.Should().NotBeNull();
         project.Members.Should().BeEmpty();
+        project.Columns.Should().NotBeNull();
+        project.Columns.Should().BeEmpty();
     }
 
     [Fact]
@@ -79,5 +82,44 @@ public class ProjectTests
         // Act & Assert
         property.Should().NotBeNull();
         property!.PropertyType.Should().BeAssignableTo(typeof(ICollection<BoardColumn>));
+    }
+
+    [Fact]
+    public void Description_IsNullableStringType()
+    {
+        // Arrange
+        var property = typeof(Project).GetProperty(nameof(Project.Description));
+
+        // Act & Assert
+        property.Should().NotBeNull();
+        property!.PropertyType.Should().Be(typeof(string));
+
+        var nullabilityContext = new System.Reflection.NullabilityInfoContext();
+        var nullabilityInfo = nullabilityContext.Create(property);
+        nullabilityInfo.WriteState.Should().Be(System.Reflection.NullabilityState.Nullable);
+    }
+
+    [Fact]
+    public void Description_DefaultValue_IsNull()
+    {
+        // Arrange & Act
+        var project = new Project();
+
+        // Assert
+        project.Description.Should().BeNull();
+    }
+
+    [Fact]
+    public void Description_SetAndGet_RoundTrips()
+    {
+        // Arrange
+        var project = new Project();
+        var expected = "A meaningful project description";
+
+        // Act
+        project.Description = expected;
+
+        // Assert
+        project.Description.Should().Be(expected);
     }
 }

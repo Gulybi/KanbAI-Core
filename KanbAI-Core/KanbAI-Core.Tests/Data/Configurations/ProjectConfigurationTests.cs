@@ -58,6 +58,44 @@ public class ProjectConfigurationTests : IDisposable
         savedProject!.Name.Should().HaveLength(200);
     }
 
+    [Fact]
+    public async Task ProjectConfiguration_Description_AcceptsMaxLength500()
+    {
+        // Arrange
+        var project = CreateValidProject();
+        project.Description = new string('B', 500);
+
+        // Act
+        _context.Projects.Add(project);
+        await _context.SaveChangesAsync();
+
+        _context.ChangeTracker.Clear();
+        var savedProject = await _context.Projects.FindAsync(project.Id);
+
+        // Assert
+        savedProject.Should().NotBeNull();
+        savedProject!.Description.Should().HaveLength(500);
+    }
+
+    [Fact]
+    public async Task ProjectConfiguration_Description_IsOptional()
+    {
+        // Arrange
+        var project = CreateValidProject();
+        project.Description = null;
+
+        // Act
+        _context.Projects.Add(project);
+        await _context.SaveChangesAsync();
+
+        _context.ChangeTracker.Clear();
+        var savedProject = await _context.Projects.FindAsync(project.Id);
+
+        // Assert
+        savedProject.Should().NotBeNull();
+        savedProject!.Description.Should().BeNull();
+    }
+
     private static Project CreateValidProject() => new()
     {
         Id = Guid.NewGuid(),
