@@ -204,4 +204,36 @@ public class ApplicationDbContextTests
         context.KanbanTasks.Should().NotBeNull();
         context.KanbanTasks.Should().BeAssignableTo<DbSet<KanbanTask>>();
     }
+
+    [Fact]
+    public void ApplicationDbContext_AssetsDbSet_IsNotNull()
+    {
+        // Arrange
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: "TestDb_AssetsDbSet")
+            .Options;
+
+        // Act
+        using var context = new ApplicationDbContext(options);
+
+        // Assert
+        context.Assets.Should().NotBeNull();
+        context.Assets.Should().BeAssignableTo<DbSet<Asset>>();
+    }
+
+    [Fact]
+    public void ApplicationDbContext_TaskCommentsDbSet_IsNotNull()
+    {
+        // Arrange
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: "TestDb_TaskCommentsDbSet")
+            .Options;
+
+        // Act
+        using var context = new ApplicationDbContext(options);
+
+        // Assert
+        context.TaskComments.Should().NotBeNull();
+        context.TaskComments.Should().BeAssignableTo<DbSet<TaskComment>>();
+    }
 }

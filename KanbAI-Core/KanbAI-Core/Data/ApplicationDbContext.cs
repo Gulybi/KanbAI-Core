@@ -15,6 +15,8 @@ namespace KanbAI_Core.Data
         public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
         public DbSet<BoardColumn> BoardColumns => Set<BoardColumn>();
         public DbSet<KanbanTask> KanbanTasks => Set<KanbanTask>();
+        public DbSet<Asset> Assets => Set<Asset>();
+        public DbSet<TaskComment> TaskComments => Set<TaskComment>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
