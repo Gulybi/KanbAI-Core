@@ -142,4 +142,15 @@ public class UserTests
         property.Should().NotBeNull();
         property!.PropertyType.Should().BeAssignableTo(typeof(ICollection<KanbanTask>));
     }
+
+    [Fact]
+    public void User_AuthoredCommentsProperty_IsCollectionOfTaskComment()
+    {
+        // Arrange
+        var property = typeof(User).GetProperty(nameof(User.AuthoredComments));
+
+        // Act & Assert
+        property.Should().NotBeNull();
+        property!.PropertyType.Should().BeAssignableTo(typeof(ICollection<TaskComment>));
+    }
 }

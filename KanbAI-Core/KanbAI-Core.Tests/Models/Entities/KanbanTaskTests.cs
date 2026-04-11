@@ -141,4 +141,26 @@ public class KanbanTaskTests
         task.AssignedId.Should().BeNull();
         task.AssignedUser.Should().BeNull();
     }
+
+    [Fact]
+    public void KanbanTask_AssetsProperty_IsCollectionOfAsset()
+    {
+        // Arrange
+        var property = typeof(KanbanTask).GetProperty(nameof(KanbanTask.Assets));
+
+        // Act & Assert
+        property.Should().NotBeNull();
+        property!.PropertyType.Should().BeAssignableTo(typeof(ICollection<Asset>));
+    }
+
+    [Fact]
+    public void KanbanTask_CommentsProperty_IsCollectionOfTaskComment()
+    {
+        // Arrange
+        var property = typeof(KanbanTask).GetProperty(nameof(KanbanTask.Comments));
+
+        // Act & Assert
+        property.Should().NotBeNull();
+        property!.PropertyType.Should().BeAssignableTo(typeof(ICollection<TaskComment>));
+    }
 }

@@ -11,4 +11,7 @@ public class KanbanTask : BaseEntity
 
     public Guid? AssignedId { get; set; }
     public User? AssignedUser { get; set; }
+
+    public ICollection<Asset> Assets { get; set; } = new List<Asset>();
+    public ICollection<TaskComment> Comments { get; set; } = new List<TaskComment>();
 }
