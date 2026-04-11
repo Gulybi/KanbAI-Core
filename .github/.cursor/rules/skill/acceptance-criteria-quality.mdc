@@ -1,0 +1,76 @@
+---
+name: acceptance-criteria-quality
+description: >-
+  Validates acceptance criteria for testability, specificity, and completeness.
+  Use when writing or reviewing acceptance criteria in handoff context notes,
+  or when the user mentions ACs, acceptance criteria, or definition of done.
+---
+
+# Acceptance Criteria Quality
+
+## When to Use
+
+Read this skill when writing acceptance criteria in `docs/handoffs/issue_{N}_context.md` files. Apply the validation checklist before finalizing any context note.
+
+## The Five Checks
+
+Every acceptance criterion must pass ALL five checks:
+
+| # | Check | Pass | Fail |
+|---|-------|------|------|
+| 1 | **Testable** | A QA engineer can write an automated assertion | "The system should be user-friendly" |
+| 2 | **Specific** | References a concrete behaviour or output | "The system should be fast" |
+| 3 | **Independent** | Describes one verifiable outcome | "User can register and receive an email and see a dashboard" |
+| 4 | **Implementation-Free** | Describes *what*, not *how* | "Use a SQL JOIN to fetch the data" |
+| 5 | **Complete** | Covers the happy path, edge cases, and failure modes | Only testing the sunny-day scenario |
+
+## Examples
+
+### Bad → Good Rewrites
+
+**Vague quality:**
+- Bad: `The API should respond quickly.`
+- Good: `The API returns a response within the timeout configured by the infrastructure layer.`
+
+**Compound criterion:**
+- Bad: `The user can create a board, add columns, and invite members.`
+- Good (split into three):
+  - `A user can create a new board with a name.`
+  - `A user can add columns to an existing board.`
+  - `A user can invite other registered users to a board.`
+
+**Implementation leak:**
+- Bad: `The system stores the password using bcrypt with 12 rounds.`
+- Good: `The system stores passwords in a hashed format; plaintext passwords are never persisted or logged.`
+
+**Missing failure mode:**
+- Bad: `A user can register with an email and password.`
+- Good:
+  - `A user can register with a valid email and password.`
+  - `Registration is rejected if the email is already in use.`
+  - `Registration is rejected if the password does not meet minimum complexity requirements.`
+
+## Checklist Template
+
+Copy this into the context note and verify each criterion:
+
+```markdown
+### AC Validation
+| # | Criterion Summary | Testable | Specific | Independent | Impl-Free | Complete |
+|---|-------------------|----------|----------|-------------|-----------|----------|
+| 1 | ...               | ✅/❌    | ✅/❌    | ✅/❌       | ✅/❌     | ✅/❌    |
+```
+
+Only finalize the context note when every cell is ✅. If any cell is ❌, revise the criterion first.
+
+## Edge Case Prompts
+
+When writing ACs, systematically ask yourself:
+- What happens with **empty or missing input**?
+- What happens with **duplicate data** (e.g., duplicate email)?
+- What happens with **maximum length or boundary values**?
+- What happens when the **referenced entity doesn't exist** (e.g., foreign key to a deleted record)?
+- What happens with **concurrent modifications**?
+- Are there **authorization constraints** (who is allowed to perform this action)?
+
+Not every question will be relevant — but skipping all of them often leads to incomplete criteria.

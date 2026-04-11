@@ -1,5 +1,6 @@
 using FluentAssertions;
 using KanbAI_Core.Data;
+using KanbAI_Core.Tests.Fixtures;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -13,11 +14,11 @@ using System.Text.Encodings.Web;
 namespace KanbAI_Core.Tests.Extensions;
 
 public class DependencyInjectionIntegrationTests
-    : IClassFixture<WebApplicationFactory<Program>>
+    : IClassFixture<CustomWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly CustomWebApplicationFactory _factory;
 
-    public DependencyInjectionIntegrationTests(WebApplicationFactory<Program> factory)
+    public DependencyInjectionIntegrationTests(CustomWebApplicationFactory factory)
     {
         _factory = factory;
     }

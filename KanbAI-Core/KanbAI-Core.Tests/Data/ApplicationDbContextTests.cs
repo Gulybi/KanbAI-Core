@@ -1,5 +1,6 @@
 using FluentAssertions;
 using KanbAI_Core.Data;
+using KanbAI_Core.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace KanbAI_Core.Tests.Data;
@@ -122,5 +123,21 @@ public class ApplicationDbContextTests
 
         // Assert
         result.Should().Be(0);
+    }
+
+    [Fact]
+    public void ApplicationDbContext_UsersDbSet_IsNotNull()
+    {
+        // Arrange
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: "TestDb_UsersDbSet")
+            .Options;
+
+        // Act
+        using var context = new ApplicationDbContext(options);
+
+        // Assert
+        context.Users.Should().NotBeNull();
+        context.Users.Should().BeAssignableTo<DbSet<User>>();
     }
 }

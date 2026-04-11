@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Encodings.Web;
 using FluentAssertions;
 using KanbAI_Core.DTOs;
+using KanbAI_Core.Tests.Fixtures;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -13,11 +14,11 @@ using Microsoft.Extensions.Options;
 
 namespace KanbAI_Core.Tests.Middleware;
 
-public class CorsMiddlewareTests : IClassFixture<WebApplicationFactory<Program>>
+public class CorsMiddlewareTests : IClassFixture<CustomWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly CustomWebApplicationFactory _factory;
 
-    public CorsMiddlewareTests(WebApplicationFactory<Program> factory)
+    public CorsMiddlewareTests(CustomWebApplicationFactory factory)
     {
         _factory = factory;
     }

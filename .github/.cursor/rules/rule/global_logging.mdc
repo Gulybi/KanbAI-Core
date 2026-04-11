@@ -10,6 +10,7 @@ These rules are **MANDATORY** for every interaction and every active agent (Prod
 The `cursor_prompts.md` file located in the project root serves as the long-term memory and audit log for the entire system.
 - **When:** You MUST update this file after every meaningful interaction, task completion, architectural decision, or file generation/modification.
 - **How:** Always append the new entry to the end of the file. NEVER overwrite or delete previous entries.
+- **⚠️ Tool Safety (CRITICAL):** To append, use `StrReplace` targeting the last line of the file and adding new content after it. **NEVER use the `Write` tool** on `cursor_prompts.md` — it overwrites the entire file and destroys all previous entries. If the file does not exist yet, you may use `Write` only for the initial creation.
 - **Format (Strict Adherence Required):**
   ```text
   [YYYY-MM-DD HH:mm] | Agent: @[agent_name] | Ticket/Issue: #[id or name]
