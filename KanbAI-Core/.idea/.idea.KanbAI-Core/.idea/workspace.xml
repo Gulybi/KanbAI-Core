@@ -15,8 +15,6 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="71311f69-0d5e-49b0-94e1-1250f099263b" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/.idea.KanbAI-Core/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.KanbAI-Core/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/KanbAI-Core/Migrations/ApplicationDbContextModelSnapshot.cs" beforeDir="false" afterPath="$PROJECT_DIR$/KanbAI-Core/Migrations/ApplicationDbContextModelSnapshot.cs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../cursor_prompts.md" beforeDir="false" afterPath="$PROJECT_DIR$/../cursor_prompts.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -68,7 +66,7 @@
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
     "cidr.known.project.marker": "true",
     "codeWithMe.voiceChat.enabledByDefault": "false",
-    "git-widget-placeholder": "25-configure-appdbcontext-with-fluent-api",
+    "git-widget-placeholder": "Merging 28-clean-up-default-template-and-set-up-kanbai-base-api-structure",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
