@@ -27,6 +27,7 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddApiInfrastructure(this IServiceCollection services)
     {
+        services.AddControllers();
         services.AddOpenApi();
         services.AddExceptionHandler<GlobalExceptionHandler>();
         services.AddProblemDetails();

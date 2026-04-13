@@ -155,13 +155,13 @@ public class GlobalExceptionHandlerTests : IClassFixture<CustomWebApplicationFac
     #region Regression — Existing Endpoints
 
     [Fact]
-    public async Task ExistingWeatherEndpoint_ContinuesToWork()
+    public async Task HealthEndpoint_Returns200OK()
     {
         // Arrange
         var client = CreateClient();
 
         // Act
-        var response = await client.GetAsync("/weatherforecast");
+        var response = await client.GetAsync("/api/health");
         var body = await response.Content.ReadFromJsonAsync<ApiResponse>();
 
         // Assert

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -100,6 +101,23 @@ public class ServiceCollectionExtensionTests
         services.Should().Contain(
             d => d.ServiceType == typeof(IProblemDetailsService),
             "AddApiInfrastructure must register IProblemDetailsService");
+    }
+
+    [Fact]
+    public void AddApiInfrastructure_RegistersControllerServices()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // Act
+        services.AddApiInfrastructure();
+        var provider = services.BuildServiceProvider();
+
+        // Assert
+        var actionDescriptorProvider = provider.GetService<IActionDescriptorCollectionProvider>();
+        actionDescriptorProvider.Should().NotBeNull(
+            "AddApiInfrastructure must register MVC controller services (IActionDescriptorCollectionProvider should be resolvable)");
     }
 
     #endregion

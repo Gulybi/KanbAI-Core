@@ -50,7 +50,7 @@ public class CorsMiddlewareTests : IClassFixture<CustomWebApplicationFactory>
     {
         // Arrange
         var client = CreateClient();
-        var request = new HttpRequestMessage(HttpMethod.Options, "/weatherforecast");
+        var request = new HttpRequestMessage(HttpMethod.Options, "/api/health");
         request.Headers.Add("Origin", "http://localhost:4200");
         request.Headers.Add("Access-Control-Request-Method", "GET");
         request.Headers.Add("Access-Control-Request-Headers", "Content-Type");
@@ -68,7 +68,7 @@ public class CorsMiddlewareTests : IClassFixture<CustomWebApplicationFactory>
     {
         // Arrange
         var client = CreateClient();
-        var request = new HttpRequestMessage(HttpMethod.Options, "/weatherforecast");
+        var request = new HttpRequestMessage(HttpMethod.Options, "/api/health");
         request.Headers.Add("Origin", "http://localhost:4200");
         request.Headers.Add("Access-Control-Request-Method", "GET");
         request.Headers.Add("Access-Control-Request-Headers", "Content-Type");
@@ -93,7 +93,7 @@ public class CorsMiddlewareTests : IClassFixture<CustomWebApplicationFactory>
     {
         // Arrange
         var client = CreateClient();
-        var request = new HttpRequestMessage(HttpMethod.Options, "/weatherforecast");
+        var request = new HttpRequestMessage(HttpMethod.Options, "/api/health");
         request.Headers.Add("Origin", "http://localhost:4200");
         request.Headers.Add("Access-Control-Request-Method", "GET");
         request.Headers.Add("Access-Control-Request-Headers", "Content-Type, Authorization");
@@ -119,7 +119,7 @@ public class CorsMiddlewareTests : IClassFixture<CustomWebApplicationFactory>
     {
         // Arrange
         var client = CreateClient();
-        var request = new HttpRequestMessage(HttpMethod.Get, "/weatherforecast");
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/health");
         request.Headers.Add("Origin", "http://localhost:4200");
 
         // Act
@@ -140,7 +140,7 @@ public class CorsMiddlewareTests : IClassFixture<CustomWebApplicationFactory>
     {
         // Arrange
         var client = CreateClient();
-        var request = new HttpRequestMessage(HttpMethod.Get, "/weatherforecast");
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/health");
         request.Headers.Add("Origin", "http://evil.example.com");
 
         // Act
@@ -159,7 +159,7 @@ public class CorsMiddlewareTests : IClassFixture<CustomWebApplicationFactory>
     {
         // Arrange
         var client = CreateClient("Production");
-        var request = new HttpRequestMessage(HttpMethod.Options, "/weatherforecast");
+        var request = new HttpRequestMessage(HttpMethod.Options, "/api/health");
         request.Headers.Add("Origin", "http://localhost:4200");
         request.Headers.Add("Access-Control-Request-Method", "GET");
         request.Headers.Add("Access-Control-Request-Headers", "Content-Type");
@@ -176,13 +176,13 @@ public class CorsMiddlewareTests : IClassFixture<CustomWebApplicationFactory>
     #region Regression — Existing Endpoints
 
     [Fact]
-    public async Task ExistingWeatherEndpoint_ContinuesToWork()
+    public async Task HealthEndpoint_Returns200OK()
     {
         // Arrange
         var client = CreateClient();
 
         // Act
-        var response = await client.GetAsync("/weatherforecast");
+        var response = await client.GetAsync("/api/health");
         var body = await response.Content.ReadFromJsonAsync<ApiResponse>();
 
         // Assert
