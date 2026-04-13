@@ -50,7 +50,7 @@ public class DependencyInjectionIntegrationTests
         var client = CreateClient();
 
         // Act
-        var response = await client.GetAsync("/weatherforecast");
+        var response = await client.GetAsync("/api/health");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK,
