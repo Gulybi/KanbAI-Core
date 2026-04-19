@@ -82,7 +82,7 @@ Before finalizing, self-validate every acceptance criterion against this checkli
 
 If any criterion fails the checklist, revise it before saving.
 
-Read the `acceptance-criteria-quality` skill (`.cursor/skills/acceptance-criteria-quality/SKILL.md`) for detailed guidance and examples.
+Read the `acceptance-criteria-quality` skill (`.cursor/skills/acceptance-criteria-quality`) for detailed guidance and examples.
 
 ### 5. 💾 Log and Hand-off
 - **Mandatory:** Append your actions to `cursor_prompts.md` according to the `@rule_global_logging` standards.
