@@ -124,7 +124,7 @@ If any check fails, revise the tech spec before saving.
 
 **Only execute this step if the tech spec includes API Contracts (Section 3 is not "N/A").**
 
-Dispatch the `@sub_agent_bridge_frontend` to verify the designed API contracts are compatible with what the frontend expects. If discrepancies are found, update Section 3 before saving.
+Dispatch the `@bridge_frontend` to verify the designed API contracts are compatible with what the frontend expects. If discrepancies are found, update Section 3 before saving.
 
 ### 5. 💾 Log and Hand-off
 - **Mandatory:** Append your actions to `cursor_prompts.md` according to the `@rule_global_logging` standards. Use `StrReplace` to append — NEVER overwrite the file.
