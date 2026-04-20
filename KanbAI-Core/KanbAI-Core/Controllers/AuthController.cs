@@ -10,32 +10,21 @@ namespace KanbAI_Core.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class AuthController
+public class AuthController(
+    ApplicationDbContext context,
+    IPasswordHasher passwordHasher,
+    ITokenService tokenService)
 {
-    private readonly ApplicationDbContext _context;
-    private readonly IPasswordHasher _passwordHasher;
-    private readonly ITokenService _tokenService;
-    
-    public AuthController(
-        ApplicationDbContext context,
-        IPasswordHasher passwordHasher,
-        ITokenService tokenService)
-    {
-        _context = context;
-        _passwordHasher = passwordHasher;
-        _tokenService = tokenService;
-    }
-
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequestDto request)
     {
-        var emailExists = await _context.Users.AnyAsync(u => u.Email.ToLower() == request.Email.ToLower());
+        var emailExists = await context.Users.AnyAsync(u => u.Email.ToLower() == request.Email.ToLower());
         if(emailExists)
         {
             return new BadRequestObjectResult(new { Message = "Email is already registered." });
         }
         
-        var hashedPassword = _passwordHasher.HashPassword(request.Password);
+        var hashedPassword = passwordHasher.HashPassword(request.Password);
 
         var newUser = new User
         {
@@ -45,8 +34,8 @@ public class AuthController
             Role = UserRole.Member
         };
         
-        _context.Users.Add(newUser);
-        await _context.SaveChangesAsync();
+        context.Users.Add(newUser);
+        await context.SaveChangesAsync();
         
         var userProfile = new UserProfileDto(
             newUser.Id.ToString(),
@@ -55,10 +44,35 @@ public class AuthController
         );
         
         var response = new AuthResponseDto(
-            Token: _tokenService.GenerateToken(newUser),
+            Token: tokenService.GenerateToken(newUser),
             User: userProfile
         );
 
         return new CreatedAtActionResult(nameof(Register), "Auth", null, response);
+    }
+
+    [HttpPost("login")]
+    public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
+    {
+        var user = await context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
+        if(user == null || !passwordHasher.VerifyPassword(request.Password, user.PasswordHash))
+        {
+            return new UnauthorizedObjectResult(new { Message = "Invalid email or password." });
+        }
+        
+        var token = tokenService.GenerateToken(user);
+        
+        var userProfile = new UserProfileDto(
+            user.Id.ToString(),
+            user.Name,
+            user.Email
+        );
+        
+        var response = new AuthResponseDto(
+            Token: tokenService.GenerateToken(user),
+            User: userProfile
+        );
+
+        return new OkObjectResult(response);
     }
 }
