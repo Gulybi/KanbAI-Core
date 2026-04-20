@@ -1,6 +1,7 @@
 using KanbAI_Core.Extensions;
 using System.Text;
 using KanbAI_Core.Models.Entities;
+using KanbAI_Core.Services.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 
@@ -9,6 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 var jwtSettings = new JwtSettings();
 builder.Configuration.Bind("JwtSettings", jwtSettings);
 builder.Services.AddSingleton(jwtSettings);
+builder.Services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
 
 builder.Services
     .AddAuthentication(options =>
