@@ -11,6 +11,7 @@ var jwtSettings = new JwtSettings();
 builder.Configuration.Bind("JwtSettings", jwtSettings);
 builder.Services.AddSingleton(jwtSettings);
 builder.Services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
+builder.Services.AddTransient<ITokenService, TokenService>();
 
 builder.Services
     .AddAuthentication(options =>
