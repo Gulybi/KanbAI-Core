@@ -2,6 +2,7 @@ using KanbAI_Core.Extensions;
 using System.Text;
 using KanbAI_Core.Models.Entities;
 using KanbAI_Core.Services.Auth;
+using KanbAI_Core.Services.Columns;
 using KanbAI_Core.Services.Projects;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -14,6 +15,7 @@ builder.Services.AddSingleton(jwtSettings);
 builder.Services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
 builder.Services.AddTransient<ITokenService, TokenService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
+builder.Services.AddScoped<IColumnService, ColumnService>();
 
 builder.Services
     .AddAuthentication(options =>
