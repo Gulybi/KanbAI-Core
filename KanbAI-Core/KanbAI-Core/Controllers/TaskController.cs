@@ -50,6 +50,33 @@ public sealed class TaskController : ControllerBase
         };
     }
 
+    [HttpPut("{taskId}/move")]
+    public async Task<IActionResult> MoveTask(Guid taskId, [FromBody] MoveTaskDto dto)
+    {
+        var userId = GetCurrentUserId();
+
+        var (data, result) = await _taskService.MoveTaskAsync(taskId, dto, userId);
+
+        return result switch
+        {
+            MoveTaskResult.Success =>
+                Ok(ApiResponse<TaskResponseDto>.Ok(data!, "Task moved successfully.")),
+            MoveTaskResult.TaskNotFound =>
+                NotFound(ApiResponse.Fail("Task not found.")),
+            MoveTaskResult.UserNotProjectMember =>
+                StatusCode(StatusCodes.Status403Forbidden,
+                    ApiResponse.Fail("You are not a member of this project.")),
+            MoveTaskResult.TargetColumnNotFound =>
+                NotFound(ApiResponse.Fail("Target column not found.")),
+            MoveTaskResult.CrossProjectMove =>
+                BadRequest(ApiResponse.Fail("Cannot move task to a column in a different project.")),
+            MoveTaskResult.InvalidTaskOrder =>
+                BadRequest(ApiResponse.Fail("TaskOrder is invalid.")),
+            _ => StatusCode(StatusCodes.Status500InternalServerError,
+                     ApiResponse.Fail("Unexpected error."))
+        };
+    }
+
     private Guid GetCurrentUserId()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;

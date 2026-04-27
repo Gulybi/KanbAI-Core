@@ -8,7 +8,8 @@
       "Bash(awk '{print $NF}')",
       "Bash(grep \"\\\\.cs$\")",
       "Bash(xargs -I {} find {} -type f -name \"*.cs\")",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(grep -E \"\\\\.cs$\")"
     ],
     "additionalDirectories": [
       "C:\\temp\\KanbAI-Core\\.claude"
