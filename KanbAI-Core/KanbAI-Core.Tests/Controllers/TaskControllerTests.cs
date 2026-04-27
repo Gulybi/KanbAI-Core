@@ -252,6 +252,220 @@ public class TaskControllerTests
 
     #endregion
 
+    #region MoveTask HTTP Mapping Tests
+
+    [Fact]
+    public async Task MoveTask_ServiceReturnsSuccess_Returns200OK()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
+        var columnId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var dto = new MoveTaskDto { ColumnId = columnId, TaskOrder = 1 };
+        var responseDto = new TaskResponseDto
+        {
+            Id = taskId.ToString(),
+            Title = "Moved Task",
+            Content = null,
+            TaskOrder = 1,
+            ColumnId = columnId.ToString(),
+            AssignedId = null,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+
+        _taskServiceMock
+            .Setup(s => s.MoveTaskAsync(taskId, dto, userId))
+            .ReturnsAsync((responseDto, MoveTaskResult.Success));
+
+        // Act
+        var result = await _controller.MoveTask(taskId, dto);
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.StatusCode.Should().Be(200);
+
+        var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<TaskResponseDto>>().Subject;
+        apiResponse.Success.Should().BeTrue();
+        apiResponse.Message.Should().Be("Task moved successfully.");
+        apiResponse.Data.Should().BeEquivalentTo(responseDto);
+    }
+
+    [Fact]
+    public async Task MoveTask_ServiceReturnsTaskNotFound_Returns404()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
+        var columnId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var dto = new MoveTaskDto { ColumnId = columnId, TaskOrder = 0 };
+
+        _taskServiceMock
+            .Setup(s => s.MoveTaskAsync(taskId, dto, userId))
+            .ReturnsAsync((null, MoveTaskResult.TaskNotFound));
+
+        // Act
+        var result = await _controller.MoveTask(taskId, dto);
+
+        // Assert
+        var notFound = result.Should().BeOfType<NotFoundObjectResult>().Subject;
+        notFound.StatusCode.Should().Be(404);
+
+        var apiResponse = notFound.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("Task not found.");
+    }
+
+    [Fact]
+    public async Task MoveTask_ServiceReturnsUserNotProjectMember_Returns403()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
+        var columnId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var dto = new MoveTaskDto { ColumnId = columnId, TaskOrder = 0 };
+
+        _taskServiceMock
+            .Setup(s => s.MoveTaskAsync(taskId, dto, userId))
+            .ReturnsAsync((null, MoveTaskResult.UserNotProjectMember));
+
+        // Act
+        var result = await _controller.MoveTask(taskId, dto);
+
+        // Assert
+        var objectResult = result.Should().BeOfType<ObjectResult>().Subject;
+        objectResult.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+
+        var apiResponse = objectResult.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("You are not a member of this project.");
+    }
+
+    [Fact]
+    public async Task MoveTask_ServiceReturnsTargetColumnNotFound_Returns404()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
+        var columnId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var dto = new MoveTaskDto { ColumnId = columnId, TaskOrder = 0 };
+
+        _taskServiceMock
+            .Setup(s => s.MoveTaskAsync(taskId, dto, userId))
+            .ReturnsAsync((null, MoveTaskResult.TargetColumnNotFound));
+
+        // Act
+        var result = await _controller.MoveTask(taskId, dto);
+
+        // Assert
+        var notFound = result.Should().BeOfType<NotFoundObjectResult>().Subject;
+        notFound.StatusCode.Should().Be(404);
+
+        var apiResponse = notFound.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("Target column not found.");
+    }
+
+    [Fact]
+    public async Task MoveTask_ServiceReturnsCrossProjectMove_Returns400()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
+        var columnId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var dto = new MoveTaskDto { ColumnId = columnId, TaskOrder = 0 };
+
+        _taskServiceMock
+            .Setup(s => s.MoveTaskAsync(taskId, dto, userId))
+            .ReturnsAsync((null, MoveTaskResult.CrossProjectMove));
+
+        // Act
+        var result = await _controller.MoveTask(taskId, dto);
+
+        // Assert
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequest.StatusCode.Should().Be(400);
+
+        var apiResponse = badRequest.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("Cannot move task to a column in a different project.");
+    }
+
+    [Fact]
+    public async Task MoveTask_ServiceReturnsInvalidTaskOrder_Returns400()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
+        var columnId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var dto = new MoveTaskDto { ColumnId = columnId, TaskOrder = 99 };
+
+        _taskServiceMock
+            .Setup(s => s.MoveTaskAsync(taskId, dto, userId))
+            .ReturnsAsync((null, MoveTaskResult.InvalidTaskOrder));
+
+        // Act
+        var result = await _controller.MoveTask(taskId, dto);
+
+        // Assert
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequest.StatusCode.Should().Be(400);
+
+        var apiResponse = badRequest.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("TaskOrder is invalid.");
+    }
+
+    #endregion
+
+    #region MoveTaskDto Validation Tests
+
+    [Fact]
+    public void MoveTaskDto_NegativeTaskOrder_FailsDataAnnotationsValidation()
+    {
+        // Arrange
+        var dto = new MoveTaskDto { ColumnId = Guid.NewGuid(), TaskOrder = -1 };
+
+        // Act
+        var validationContext = new ValidationContext(dto);
+        var validationResults = new List<ValidationResult>();
+        var isValid = Validator.TryValidateObject(dto, validationContext, validationResults, true);
+
+        // Assert
+        isValid.Should().BeFalse();
+        validationResults.Should().Contain(vr => vr.MemberNames.Contains("TaskOrder"));
+    }
+
+    [Fact]
+    public void MoveTaskDto_ZeroTaskOrder_PassesDataAnnotationsValidation()
+    {
+        // Arrange
+        var dto = new MoveTaskDto { ColumnId = Guid.NewGuid(), TaskOrder = 0 };
+
+        // Act
+        var validationContext = new ValidationContext(dto);
+        var validationResults = new List<ValidationResult>();
+        var isValid = Validator.TryValidateObject(dto, validationContext, validationResults, true);
+
+        // Assert
+        isValid.Should().BeTrue();
+        validationResults.Should().BeEmpty();
+    }
+
+    #endregion
+
     #region DTO Validation Tests
 
     [Fact]

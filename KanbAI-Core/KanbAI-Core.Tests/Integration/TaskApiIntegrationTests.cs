@@ -102,6 +102,59 @@ public class TaskApiIntegrationTests : IClassFixture<CustomWebApplicationFactory
 
     #endregion
 
+    #region MoveTask Security & Validation Tests
+
+    [Fact]
+    public async Task PutMoveTask_Unauthenticated_Returns401()
+    {
+        // Arrange
+        var client = CreateUnauthenticatedClient();
+        var taskId = Guid.NewGuid();
+        var dto = new MoveTaskDto { ColumnId = Guid.NewGuid(), TaskOrder = 0 };
+
+        // Act
+        var response = await client.PutAsJsonAsync($"/api/task/{taskId}/move", dto);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task PutMoveTask_MissingColumnId_Returns400()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var client = CreateAuthenticatedClient(userId);
+        var taskId = Guid.NewGuid();
+
+        var invalidBody = new { taskOrder = 0 };
+
+        // Act
+        var response = await client.PutAsJsonAsync($"/api/task/{taskId}/move", invalidBody);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task PutMoveTask_NegativeTaskOrder_Returns400()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var client = CreateAuthenticatedClient(userId);
+        var taskId = Guid.NewGuid();
+
+        var body = new { columnId = Guid.NewGuid(), taskOrder = -1 };
+
+        // Act
+        var response = await client.PutAsJsonAsync($"/api/task/{taskId}/move", body);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    #endregion
+
     #region Test Infrastructure
 
     private HttpClient CreateAuthenticatedClient(Guid userId)

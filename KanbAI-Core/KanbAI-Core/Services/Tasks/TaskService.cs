@@ -96,6 +96,165 @@ public sealed class TaskService : ITaskService
         return (MapToDto(task), CreateTaskResult.Success);
     }
 
+    public async Task<(TaskResponseDto? data, MoveTaskResult result)> MoveTaskAsync(
+        Guid taskId,
+        MoveTaskDto dto,
+        Guid userId)
+    {
+        if (dto.TaskOrder < 0)
+        {
+            _logger.LogWarning("Negative TaskOrder {TaskOrder} for task {TaskId}", dto.TaskOrder, taskId);
+            return (null, MoveTaskResult.InvalidTaskOrder);
+        }
+
+        var task = await _context.KanbanTasks
+            .Include(t => t.Column)
+                .ThenInclude(c => c.Project)
+                    .ThenInclude(p => p.Members)
+            .FirstOrDefaultAsync(t => t.Id == taskId);
+
+        if (task == null)
+        {
+            _logger.LogWarning("Task {TaskId} not found", taskId);
+            return (null, MoveTaskResult.TaskNotFound);
+        }
+
+        if (!task.Column.Project.Members.Any(m => m.UserId == userId))
+        {
+            _logger.LogWarning(
+                "User {UserId} attempted to move task {TaskId} without project membership",
+                userId, taskId);
+            return (null, MoveTaskResult.UserNotProjectMember);
+        }
+
+        var isSameColumn = dto.ColumnId == task.ColumnId;
+
+        if (!isSameColumn)
+        {
+            var targetColumn = await _context.BoardColumns
+                .Include(c => c.Project)
+                .FirstOrDefaultAsync(c => c.Id == dto.ColumnId);
+
+            if (targetColumn == null)
+            {
+                _logger.LogWarning("Target column {ColumnId} not found", dto.ColumnId);
+                return (null, MoveTaskResult.TargetColumnNotFound);
+            }
+
+            if (targetColumn.ProjectId != task.Column.ProjectId)
+            {
+                _logger.LogWarning(
+                    "User {UserId} attempted to move task {TaskId} to a column in a different project",
+                    userId, taskId);
+                return (null, MoveTaskResult.CrossProjectMove);
+            }
+        }
+
+        if (!isSameColumn)
+        {
+            var targetColumnTaskCount = await _context.KanbanTasks
+                .CountAsync(t => t.ColumnId == dto.ColumnId);
+
+            if (dto.TaskOrder > targetColumnTaskCount)
+            {
+                _logger.LogWarning(
+                    "Invalid TaskOrder {TaskOrder} for target column {ColumnId} with {Count} tasks",
+                    dto.TaskOrder, dto.ColumnId, targetColumnTaskCount);
+                return (null, MoveTaskResult.InvalidTaskOrder);
+            }
+        }
+        else
+        {
+            var currentColumnTaskCount = await _context.KanbanTasks
+                .CountAsync(t => t.ColumnId == task.ColumnId);
+
+            if (dto.TaskOrder > currentColumnTaskCount - 1)
+            {
+                _logger.LogWarning(
+                    "Invalid TaskOrder {TaskOrder} for same-column reorder with {Count} tasks",
+                    dto.TaskOrder, currentColumnTaskCount);
+                return (null, MoveTaskResult.InvalidTaskOrder);
+            }
+        }
+
+        if (isSameColumn && dto.TaskOrder == task.TaskOrder)
+        {
+            _logger.LogInformation(
+                "Task {TaskId} is already at position {TaskOrder} in column {ColumnId} - no changes needed",
+                taskId, dto.TaskOrder, dto.ColumnId);
+            return (MapToDto(task), MoveTaskResult.Success);
+        }
+
+        if (!isSameColumn)
+        {
+            var oldColumnId = task.ColumnId;
+            var oldTaskOrder = task.TaskOrder;
+
+            var sourceColumnTasks = await _context.KanbanTasks
+                .Where(t => t.ColumnId == oldColumnId && t.TaskOrder > oldTaskOrder)
+                .ToListAsync();
+
+            foreach (var t in sourceColumnTasks)
+            {
+                t.TaskOrder -= 1;
+            }
+
+            var targetColumnTasks = await _context.KanbanTasks
+                .Where(t => t.ColumnId == dto.ColumnId && t.TaskOrder >= dto.TaskOrder)
+                .ToListAsync();
+
+            foreach (var t in targetColumnTasks)
+            {
+                t.TaskOrder += 1;
+            }
+
+            task.ColumnId = dto.ColumnId;
+            task.TaskOrder = dto.TaskOrder;
+        }
+        else
+        {
+            var oldTaskOrder = task.TaskOrder;
+            var newTaskOrder = dto.TaskOrder;
+
+            if (newTaskOrder < oldTaskOrder)
+            {
+                var affectedTasks = await _context.KanbanTasks
+                    .Where(t => t.ColumnId == task.ColumnId
+                                && t.TaskOrder >= newTaskOrder
+                                && t.TaskOrder < oldTaskOrder)
+                    .ToListAsync();
+
+                foreach (var t in affectedTasks)
+                {
+                    t.TaskOrder += 1;
+                }
+            }
+            else
+            {
+                var affectedTasks = await _context.KanbanTasks
+                    .Where(t => t.ColumnId == task.ColumnId
+                                && t.TaskOrder > oldTaskOrder
+                                && t.TaskOrder <= newTaskOrder)
+                    .ToListAsync();
+
+                foreach (var t in affectedTasks)
+                {
+                    t.TaskOrder -= 1;
+                }
+            }
+
+            task.TaskOrder = newTaskOrder;
+        }
+
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "User {UserId} moved task {TaskId} to column {ColumnId} at order {TaskOrder}",
+            userId, taskId, task.ColumnId, task.TaskOrder);
+
+        return (MapToDto(task), MoveTaskResult.Success);
+    }
+
     private static TaskResponseDto MapToDto(KanbanTask task) =>
         new()
         {
