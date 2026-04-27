@@ -48,4 +48,42 @@ public interface IProjectService
     /// - (false, "Only the project owner can delete the project.") if user is Member (not Owner).
     /// </returns>
     Task<(bool isDeleted, string? errorMessage)> DeleteProjectAsync(Guid projectId, Guid userId);
+
+    /// <summary>
+    /// Adds a user to a project as a Member if the requesting user is the project Owner.
+    /// </summary>
+    /// <param name="projectId">The project ID.</param>
+    /// <param name="userIdToAdd">The ID of the user to add to the project.</param>
+    /// <param name="requestingUserId">The ID of the authenticated user making the request.</param>
+    /// <returns>
+    /// A tuple: (MemberResponseDto? member, string? errorMessage).
+    /// - (memberDto, null) if successfully added.
+    /// - (null, "Project not found.") if project doesn't exist or requesting user is not a member.
+    /// - (null, "Only the project owner can add members.") if requesting user is not an Owner.
+    /// - (null, "User not found.") if userIdToAdd does not exist in the Users table.
+    /// - (null, "User is already a member of this project.") if duplicate membership detected.
+    /// </returns>
+    Task<(MemberResponseDto? member, string? errorMessage)> AddMemberAsync(
+        Guid projectId,
+        Guid userIdToAdd,
+        Guid requestingUserId);
+
+    /// <summary>
+    /// Removes a user from a project if the requesting user is the project Owner.
+    /// </summary>
+    /// <param name="projectId">The project ID.</param>
+    /// <param name="userIdToRemove">The ID of the user to remove from the project.</param>
+    /// <param name="requestingUserId">The ID of the authenticated user making the request.</param>
+    /// <returns>
+    /// A tuple: (bool isRemoved, string? errorMessage).
+    /// - (true, null) if successfully removed.
+    /// - (false, "Project not found.") if project doesn't exist or requesting user is not a member.
+    /// - (false, "Only the project owner can remove members.") if requesting user is not an Owner.
+    /// - (false, "User is not a member of this project.") if userIdToRemove is not a member.
+    /// - (false, "Cannot remove the last owner from the project.") if attempting to remove the only remaining Owner.
+    /// </returns>
+    Task<(bool isRemoved, string? errorMessage)> RemoveMemberAsync(
+        Guid projectId,
+        Guid userIdToRemove,
+        Guid requestingUserId);
 }
