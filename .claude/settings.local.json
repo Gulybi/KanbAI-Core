@@ -4,7 +4,11 @@
       "Bash(gh issue *)",
       "Bash(dotnet build *)",
       "Bash(dotnet test *)",
-      "Read(//c/c/temp/KanbAI-Core/KanbAI-Core/**)"
+      "Read(//c/c/temp/KanbAI-Core/KanbAI-Core/**)",
+      "Bash(awk '{print $NF}')",
+      "Bash(grep \"\\\\.cs$\")",
+      "Bash(xargs -I {} find {} -type f -name \"*.cs\")",
+      "Bash(xargs grep *)"
     ],
     "additionalDirectories": [
       "C:\\temp\\KanbAI-Core\\.claude"
