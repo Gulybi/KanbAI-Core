@@ -1,0 +1,65 @@
+namespace KanbAI_Core.Controllers;
+
+using KanbAI_Core.DTOs;
+using KanbAI_Core.Services.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
+
+[ApiController]
+[Route("api/[controller]")]
+[Authorize]
+public sealed class TaskController : ControllerBase
+{
+    private readonly ITaskService _taskService;
+    private readonly ILogger<TaskController> _logger;
+
+    public TaskController(ITaskService taskService, ILogger<TaskController> logger)
+    {
+        _taskService = taskService;
+        _logger = logger;
+    }
+
+    [HttpPost("column/{columnId}")]
+    public async Task<IActionResult> CreateTask(Guid columnId, [FromBody] CreateTaskDto dto)
+    {
+        var userId = GetCurrentUserId();
+
+        var (data, result) = await _taskService.CreateTaskAsync(columnId, dto, userId);
+
+        return result switch
+        {
+            CreateTaskResult.Success =>
+                CreatedAtAction(
+                    nameof(CreateTask),
+                    new { columnId = data!.ColumnId },
+                    ApiResponse<TaskResponseDto>.Ok(data, "Task created successfully.")),
+            CreateTaskResult.ColumnNotFound =>
+                NotFound(ApiResponse.Fail("Column not found.")),
+            CreateTaskResult.UserNotProjectMember =>
+                StatusCode(StatusCodes.Status403Forbidden,
+                    ApiResponse.Fail("You are not a member of this project.")),
+            CreateTaskResult.InvalidTitle =>
+                BadRequest(ApiResponse.Fail("Task title is required.")),
+            CreateTaskResult.AssignedUserNotFound =>
+                BadRequest(ApiResponse.Fail("Assigned user not found.")),
+            CreateTaskResult.AssignedUserNotProjectMember =>
+                BadRequest(ApiResponse.Fail("Assigned user is not a member of this project.")),
+            _ => StatusCode(StatusCodes.Status500InternalServerError,
+                     ApiResponse.Fail("Unexpected error."))
+        };
+    }
+
+    private Guid GetCurrentUserId()
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            _logger.LogError("Invalid or missing NameIdentifier claim in JWT token");
+            throw new UnauthorizedAccessException("Invalid or missing user ID in token.");
+        }
+
+        return userId;
+    }
+}
