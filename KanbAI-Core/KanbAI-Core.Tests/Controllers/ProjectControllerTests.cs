@@ -377,6 +377,295 @@ public class ProjectControllerTests
 
     #endregion
 
+    #region AddMember Tests
+
+    [Fact]
+    public async Task AddMember_ValidDto_Returns201WithMemberDetails()
+    {
+        // Arrange
+        var requestingUserId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var userIdToAdd = Guid.NewGuid();
+        SetupUserClaims(requestingUserId);
+
+        var dto = new AddMemberDto
+        {
+            UserId = userIdToAdd
+        };
+
+        var memberResponse = new MemberResponseDto
+        {
+            UserId = userIdToAdd.ToString(),
+            Name = "Jane Doe",
+            Email = "jane@example.com",
+            Role = "Member",
+            JoinedAt = DateTimeOffset.UtcNow
+        };
+
+        _projectServiceMock
+            .Setup(s => s.AddMemberAsync(projectId, userIdToAdd, requestingUserId))
+            .ReturnsAsync((memberResponse, (string?)null));
+
+        // Act
+        var result = await _controller.AddMember(projectId, dto);
+
+        // Assert
+        var createdResult = result.Should().BeOfType<ObjectResult>().Subject;
+        createdResult.StatusCode.Should().Be(201);
+
+        var apiResponse = createdResult.Value.Should().BeOfType<ApiResponse<MemberResponseDto>>().Subject;
+        apiResponse.Success.Should().BeTrue();
+        apiResponse.Data.Should().BeEquivalentTo(memberResponse);
+        apiResponse.Message.Should().Be("Member added successfully.");
+    }
+
+    [Fact]
+    public async Task AddMember_UserNotOwner_Returns403()
+    {
+        // Arrange
+        var requestingUserId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var userIdToAdd = Guid.NewGuid();
+        SetupUserClaims(requestingUserId);
+
+        var dto = new AddMemberDto
+        {
+            UserId = userIdToAdd
+        };
+
+        _projectServiceMock
+            .Setup(s => s.AddMemberAsync(projectId, userIdToAdd, requestingUserId))
+            .ReturnsAsync(((MemberResponseDto?)null, "Only the project owner can add members."));
+
+        // Act
+        var result = await _controller.AddMember(projectId, dto);
+
+        // Assert
+        var forbiddenResult = result.Should().BeOfType<ObjectResult>().Subject;
+        forbiddenResult.StatusCode.Should().Be(403);
+
+        var apiResponse = forbiddenResult.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("Only the project owner can add members.");
+    }
+
+    [Fact]
+    public async Task AddMember_ProjectNotFound_Returns404()
+    {
+        // Arrange
+        var requestingUserId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var userIdToAdd = Guid.NewGuid();
+        SetupUserClaims(requestingUserId);
+
+        var dto = new AddMemberDto
+        {
+            UserId = userIdToAdd
+        };
+
+        _projectServiceMock
+            .Setup(s => s.AddMemberAsync(projectId, userIdToAdd, requestingUserId))
+            .ReturnsAsync(((MemberResponseDto?)null, "Project not found."));
+
+        // Act
+        var result = await _controller.AddMember(projectId, dto);
+
+        // Assert
+        var notFoundResult = result.Should().BeOfType<NotFoundObjectResult>().Subject;
+        notFoundResult.StatusCode.Should().Be(404);
+
+        var apiResponse = notFoundResult.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("Project not found.");
+    }
+
+    [Fact]
+    public async Task AddMember_UserNotFound_Returns400()
+    {
+        // Arrange
+        var requestingUserId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var userIdToAdd = Guid.NewGuid();
+        SetupUserClaims(requestingUserId);
+
+        var dto = new AddMemberDto
+        {
+            UserId = userIdToAdd
+        };
+
+        _projectServiceMock
+            .Setup(s => s.AddMemberAsync(projectId, userIdToAdd, requestingUserId))
+            .ReturnsAsync(((MemberResponseDto?)null, "User not found."));
+
+        // Act
+        var result = await _controller.AddMember(projectId, dto);
+
+        // Assert
+        var badRequestResult = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequestResult.StatusCode.Should().Be(400);
+
+        var apiResponse = badRequestResult.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("User not found.");
+    }
+
+    [Fact]
+    public async Task AddMember_UserAlreadyMember_Returns400()
+    {
+        // Arrange
+        var requestingUserId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var userIdToAdd = Guid.NewGuid();
+        SetupUserClaims(requestingUserId);
+
+        var dto = new AddMemberDto
+        {
+            UserId = userIdToAdd
+        };
+
+        _projectServiceMock
+            .Setup(s => s.AddMemberAsync(projectId, userIdToAdd, requestingUserId))
+            .ReturnsAsync(((MemberResponseDto?)null, "User is already a member of this project."));
+
+        // Act
+        var result = await _controller.AddMember(projectId, dto);
+
+        // Assert
+        var badRequestResult = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequestResult.StatusCode.Should().Be(400);
+
+        var apiResponse = badRequestResult.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("User is already a member of this project.");
+    }
+
+    #endregion
+
+    #region RemoveMember Tests
+
+    [Fact]
+    public async Task RemoveMember_ValidRequest_Returns204()
+    {
+        // Arrange
+        var requestingUserId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var userIdToRemove = Guid.NewGuid();
+        SetupUserClaims(requestingUserId);
+
+        _projectServiceMock
+            .Setup(s => s.RemoveMemberAsync(projectId, userIdToRemove, requestingUserId))
+            .ReturnsAsync((true, (string?)null));
+
+        // Act
+        var result = await _controller.RemoveMember(projectId, userIdToRemove);
+
+        // Assert
+        var noContentResult = result.Should().BeOfType<NoContentResult>().Subject;
+        noContentResult.StatusCode.Should().Be(204);
+    }
+
+    [Fact]
+    public async Task RemoveMember_UserNotOwner_Returns403()
+    {
+        // Arrange
+        var requestingUserId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var userIdToRemove = Guid.NewGuid();
+        SetupUserClaims(requestingUserId);
+
+        _projectServiceMock
+            .Setup(s => s.RemoveMemberAsync(projectId, userIdToRemove, requestingUserId))
+            .ReturnsAsync((false, "Only the project owner can remove members."));
+
+        // Act
+        var result = await _controller.RemoveMember(projectId, userIdToRemove);
+
+        // Assert
+        var forbiddenResult = result.Should().BeOfType<ObjectResult>().Subject;
+        forbiddenResult.StatusCode.Should().Be(403);
+
+        var apiResponse = forbiddenResult.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("Only the project owner can remove members.");
+    }
+
+    [Fact]
+    public async Task RemoveMember_ProjectNotFound_Returns404()
+    {
+        // Arrange
+        var requestingUserId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var userIdToRemove = Guid.NewGuid();
+        SetupUserClaims(requestingUserId);
+
+        _projectServiceMock
+            .Setup(s => s.RemoveMemberAsync(projectId, userIdToRemove, requestingUserId))
+            .ReturnsAsync((false, "Project not found."));
+
+        // Act
+        var result = await _controller.RemoveMember(projectId, userIdToRemove);
+
+        // Assert
+        var notFoundResult = result.Should().BeOfType<NotFoundObjectResult>().Subject;
+        notFoundResult.StatusCode.Should().Be(404);
+
+        var apiResponse = notFoundResult.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("Project not found.");
+    }
+
+    [Fact]
+    public async Task RemoveMember_UserNotMember_Returns404()
+    {
+        // Arrange
+        var requestingUserId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var userIdToRemove = Guid.NewGuid();
+        SetupUserClaims(requestingUserId);
+
+        _projectServiceMock
+            .Setup(s => s.RemoveMemberAsync(projectId, userIdToRemove, requestingUserId))
+            .ReturnsAsync((false, "User is not a member of this project."));
+
+        // Act
+        var result = await _controller.RemoveMember(projectId, userIdToRemove);
+
+        // Assert
+        var notFoundResult = result.Should().BeOfType<NotFoundObjectResult>().Subject;
+        notFoundResult.StatusCode.Should().Be(404);
+
+        var apiResponse = notFoundResult.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("User is not a member of this project.");
+    }
+
+    [Fact]
+    public async Task RemoveMember_LastOwner_Returns400()
+    {
+        // Arrange
+        var requestingUserId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var userIdToRemove = Guid.NewGuid();
+        SetupUserClaims(requestingUserId);
+
+        _projectServiceMock
+            .Setup(s => s.RemoveMemberAsync(projectId, userIdToRemove, requestingUserId))
+            .ReturnsAsync((false, "Cannot remove the last owner from the project."));
+
+        // Act
+        var result = await _controller.RemoveMember(projectId, userIdToRemove);
+
+        // Assert
+        var badRequestResult = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequestResult.StatusCode.Should().Be(400);
+
+        var apiResponse = badRequestResult.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("Cannot remove the last owner from the project.");
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private void SetupUserClaims(Guid userId)

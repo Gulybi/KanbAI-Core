@@ -425,6 +425,385 @@ public class ProjectServiceTests
 
     #endregion
 
+    #region AddMemberAsync Tests
+
+    [Fact]
+    public async Task AddMemberAsync_ValidRequest_AddsMemberWithMemberRole()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+        var userToAddId = Guid.NewGuid();
+
+        var project = new Project { Name = "Test Project" };
+        context.Projects.Add(project);
+
+        var owner = new ProjectMember { ProjectId = project.Id, UserId = ownerId, Role = ProjectRole.Owner };
+        context.ProjectMembers.Add(owner);
+
+        var userToAdd = new User { Id = userToAddId, Name = "Jane Doe", Email = "jane@example.com", PasswordHash = "hash" };
+        context.Users.Add(userToAdd);
+
+        await context.SaveChangesAsync();
+
+        // Act
+        var (member, errorMessage) = await service.AddMemberAsync(project.Id, userToAddId, ownerId);
+
+        // Assert
+        member.Should().NotBeNull();
+        errorMessage.Should().BeNull();
+        member!.UserId.Should().Be(userToAddId.ToString());
+        member.Name.Should().Be("Jane Doe");
+        member.Email.Should().Be("jane@example.com");
+        member.Role.Should().Be("Member");
+        member.JoinedAt.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(5));
+
+        var addedMember = await context.ProjectMembers
+            .FirstOrDefaultAsync(m => m.ProjectId == project.Id && m.UserId == userToAddId);
+        addedMember.Should().NotBeNull();
+        addedMember!.Role.Should().Be(ProjectRole.Member);
+    }
+
+    [Fact]
+    public async Task AddMemberAsync_RequestingUserNotOwner_ReturnsForbiddenMessage()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var memberId = Guid.NewGuid();
+        var userToAddId = Guid.NewGuid();
+
+        var project = new Project { Name = "Test Project" };
+        context.Projects.Add(project);
+
+        var member = new ProjectMember { ProjectId = project.Id, UserId = memberId, Role = ProjectRole.Member };
+        context.ProjectMembers.Add(member);
+
+        var userToAdd = new User { Id = userToAddId, Name = "Jane Doe", Email = "jane@example.com", PasswordHash = "hash" };
+        context.Users.Add(userToAdd);
+
+        await context.SaveChangesAsync();
+
+        // Act
+        var (memberDto, errorMessage) = await service.AddMemberAsync(project.Id, userToAddId, memberId);
+
+        // Assert
+        memberDto.Should().BeNull();
+        errorMessage.Should().Be("Only the project owner can add members.");
+
+        var notAddedMember = await context.ProjectMembers
+            .FirstOrDefaultAsync(m => m.ProjectId == project.Id && m.UserId == userToAddId);
+        notAddedMember.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task AddMemberAsync_ProjectNotFound_ReturnsNotFoundMessage()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+        var userToAddId = Guid.NewGuid();
+        var nonExistentProjectId = Guid.NewGuid();
+
+        // Act
+        var (member, errorMessage) = await service.AddMemberAsync(nonExistentProjectId, userToAddId, ownerId);
+
+        // Assert
+        member.Should().BeNull();
+        errorMessage.Should().Be("Project not found.");
+    }
+
+    [Fact]
+    public async Task AddMemberAsync_RequestingUserNotMember_ReturnsNotFoundMessage()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+        var requestingUserId = Guid.NewGuid();
+        var userToAddId = Guid.NewGuid();
+
+        var project = new Project { Name = "Test Project" };
+        context.Projects.Add(project);
+
+        var owner = new ProjectMember { ProjectId = project.Id, UserId = ownerId, Role = ProjectRole.Owner };
+        context.ProjectMembers.Add(owner);
+
+        var userToAdd = new User { Id = userToAddId, Name = "Jane Doe", Email = "jane@example.com", PasswordHash = "hash" };
+        context.Users.Add(userToAdd);
+
+        await context.SaveChangesAsync();
+
+        // Act
+        var (member, errorMessage) = await service.AddMemberAsync(project.Id, userToAddId, requestingUserId);
+
+        // Assert
+        member.Should().BeNull();
+        errorMessage.Should().Be("Project not found.");
+    }
+
+    [Fact]
+    public async Task AddMemberAsync_UserToAddNotFound_ReturnsUserNotFoundMessage()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+        var nonExistentUserId = Guid.NewGuid();
+
+        var project = new Project { Name = "Test Project" };
+        context.Projects.Add(project);
+
+        var owner = new ProjectMember { ProjectId = project.Id, UserId = ownerId, Role = ProjectRole.Owner };
+        context.ProjectMembers.Add(owner);
+
+        await context.SaveChangesAsync();
+
+        // Act
+        var (member, errorMessage) = await service.AddMemberAsync(project.Id, nonExistentUserId, ownerId);
+
+        // Assert
+        member.Should().BeNull();
+        errorMessage.Should().Be("User not found.");
+    }
+
+    [Fact]
+    public async Task AddMemberAsync_UserAlreadyMember_ReturnsDuplicateMessage()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+        var existingMemberId = Guid.NewGuid();
+
+        var project = new Project { Name = "Test Project" };
+        context.Projects.Add(project);
+
+        var owner = new ProjectMember { ProjectId = project.Id, UserId = ownerId, Role = ProjectRole.Owner };
+        var existingMember = new ProjectMember { ProjectId = project.Id, UserId = existingMemberId, Role = ProjectRole.Member };
+        context.ProjectMembers.AddRange(owner, existingMember);
+
+        var user = new User { Id = existingMemberId, Name = "Existing Member", Email = "existing@example.com", PasswordHash = "hash" };
+        context.Users.Add(user);
+
+        await context.SaveChangesAsync();
+
+        var memberCountBefore = await context.ProjectMembers.CountAsync(m => m.ProjectId == project.Id);
+
+        // Act
+        var (member, errorMessage) = await service.AddMemberAsync(project.Id, existingMemberId, ownerId);
+
+        // Assert
+        member.Should().BeNull();
+        errorMessage.Should().Be("User is already a member of this project.");
+
+        var memberCountAfter = await context.ProjectMembers.CountAsync(m => m.ProjectId == project.Id);
+        memberCountAfter.Should().Be(memberCountBefore);
+    }
+
+    #endregion
+
+    #region RemoveMemberAsync Tests
+
+    [Fact]
+    public async Task RemoveMemberAsync_ValidRequest_RemovesMember()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+        var memberToRemoveId = Guid.NewGuid();
+
+        var project = new Project { Name = "Test Project" };
+        context.Projects.Add(project);
+
+        var owner = new ProjectMember { ProjectId = project.Id, UserId = ownerId, Role = ProjectRole.Owner };
+        var memberToRemove = new ProjectMember { ProjectId = project.Id, UserId = memberToRemoveId, Role = ProjectRole.Member };
+        context.ProjectMembers.AddRange(owner, memberToRemove);
+
+        await context.SaveChangesAsync();
+
+        // Act
+        var (isRemoved, errorMessage) = await service.RemoveMemberAsync(project.Id, memberToRemoveId, ownerId);
+
+        // Assert
+        isRemoved.Should().BeTrue();
+        errorMessage.Should().BeNull();
+
+        var removedMember = await context.ProjectMembers
+            .FirstOrDefaultAsync(m => m.ProjectId == project.Id && m.UserId == memberToRemoveId);
+        removedMember.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_RequestingUserNotOwner_ReturnsForbiddenMessage()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+        var memberId = Guid.NewGuid();
+        var memberToRemoveId = Guid.NewGuid();
+
+        var project = new Project { Name = "Test Project" };
+        context.Projects.Add(project);
+
+        var owner = new ProjectMember { ProjectId = project.Id, UserId = ownerId, Role = ProjectRole.Owner };
+        var member = new ProjectMember { ProjectId = project.Id, UserId = memberId, Role = ProjectRole.Member };
+        var memberToRemove = new ProjectMember { ProjectId = project.Id, UserId = memberToRemoveId, Role = ProjectRole.Member };
+        context.ProjectMembers.AddRange(owner, member, memberToRemove);
+
+        await context.SaveChangesAsync();
+
+        // Act
+        var (isRemoved, errorMessage) = await service.RemoveMemberAsync(project.Id, memberToRemoveId, memberId);
+
+        // Assert
+        isRemoved.Should().BeFalse();
+        errorMessage.Should().Be("Only the project owner can remove members.");
+
+        var stillExistingMember = await context.ProjectMembers
+            .FirstOrDefaultAsync(m => m.ProjectId == project.Id && m.UserId == memberToRemoveId);
+        stillExistingMember.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_ProjectNotFound_ReturnsNotFoundMessage()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+        var memberToRemoveId = Guid.NewGuid();
+        var nonExistentProjectId = Guid.NewGuid();
+
+        // Act
+        var (isRemoved, errorMessage) = await service.RemoveMemberAsync(nonExistentProjectId, memberToRemoveId, ownerId);
+
+        // Assert
+        isRemoved.Should().BeFalse();
+        errorMessage.Should().Be("Project not found.");
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_RequestingUserNotMember_ReturnsNotFoundMessage()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+        var requestingUserId = Guid.NewGuid();
+        var memberToRemoveId = Guid.NewGuid();
+
+        var project = new Project { Name = "Test Project" };
+        context.Projects.Add(project);
+
+        var owner = new ProjectMember { ProjectId = project.Id, UserId = ownerId, Role = ProjectRole.Owner };
+        var memberToRemove = new ProjectMember { ProjectId = project.Id, UserId = memberToRemoveId, Role = ProjectRole.Member };
+        context.ProjectMembers.AddRange(owner, memberToRemove);
+
+        await context.SaveChangesAsync();
+
+        // Act
+        var (isRemoved, errorMessage) = await service.RemoveMemberAsync(project.Id, memberToRemoveId, requestingUserId);
+
+        // Assert
+        isRemoved.Should().BeFalse();
+        errorMessage.Should().Be("Project not found.");
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_UserToRemoveNotMember_ReturnsNotMemberMessage()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+        var nonMemberId = Guid.NewGuid();
+
+        var project = new Project { Name = "Test Project" };
+        context.Projects.Add(project);
+
+        var owner = new ProjectMember { ProjectId = project.Id, UserId = ownerId, Role = ProjectRole.Owner };
+        context.ProjectMembers.Add(owner);
+
+        await context.SaveChangesAsync();
+
+        // Act
+        var (isRemoved, errorMessage) = await service.RemoveMemberAsync(project.Id, nonMemberId, ownerId);
+
+        // Assert
+        isRemoved.Should().BeFalse();
+        errorMessage.Should().Be("User is not a member of this project.");
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_LastOwner_ReturnsLastOwnerMessage()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+
+        var project = new Project { Name = "Test Project" };
+        context.Projects.Add(project);
+
+        var owner = new ProjectMember { ProjectId = project.Id, UserId = ownerId, Role = ProjectRole.Owner };
+        context.ProjectMembers.Add(owner);
+
+        await context.SaveChangesAsync();
+
+        // Act
+        var (isRemoved, errorMessage) = await service.RemoveMemberAsync(project.Id, ownerId, ownerId);
+
+        // Assert
+        isRemoved.Should().BeFalse();
+        errorMessage.Should().Be("Cannot remove the last owner from the project.");
+
+        var stillExistingOwner = await context.ProjectMembers
+            .FirstOrDefaultAsync(m => m.ProjectId == project.Id && m.UserId == ownerId);
+        stillExistingOwner.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_MultipleOwnersRemoveOne_Success()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var owner1Id = Guid.NewGuid();
+        var owner2Id = Guid.NewGuid();
+
+        var project = new Project { Name = "Test Project" };
+        context.Projects.Add(project);
+
+        var owner1 = new ProjectMember { ProjectId = project.Id, UserId = owner1Id, Role = ProjectRole.Owner };
+        var owner2 = new ProjectMember { ProjectId = project.Id, UserId = owner2Id, Role = ProjectRole.Owner };
+        context.ProjectMembers.AddRange(owner1, owner2);
+
+        await context.SaveChangesAsync();
+
+        // Act
+        var (isRemoved, errorMessage) = await service.RemoveMemberAsync(project.Id, owner2Id, owner1Id);
+
+        // Assert
+        isRemoved.Should().BeTrue();
+        errorMessage.Should().BeNull();
+
+        var removedOwner = await context.ProjectMembers
+            .FirstOrDefaultAsync(m => m.ProjectId == project.Id && m.UserId == owner2Id);
+        removedOwner.Should().BeNull();
+
+        var remainingOwner = await context.ProjectMembers
+            .FirstOrDefaultAsync(m => m.ProjectId == project.Id && m.UserId == owner1Id);
+        remainingOwner.Should().NotBeNull();
+        remainingOwner!.Role.Should().Be(ProjectRole.Owner);
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private ApplicationDbContext CreateInMemoryContext()

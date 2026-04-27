@@ -153,6 +153,128 @@ public sealed class ProjectService : IProjectService
         return (true, null);
     }
 
+    public async Task<(MemberResponseDto? member, string? errorMessage)> AddMemberAsync(
+        Guid projectId,
+        Guid userIdToAdd,
+        Guid requestingUserId)
+    {
+        var project = await _context.Projects
+            .Include(p => p.Members)
+                .ThenInclude(m => m.User)
+            .FirstOrDefaultAsync(p => p.Id == projectId);
+
+        if (project == null)
+        {
+            _logger.LogWarning("Project {ProjectId} not found for add member operation", projectId);
+            return (null, "Project not found.");
+        }
+
+        var requestingMember = project.Members.FirstOrDefault(m => m.UserId == requestingUserId);
+        if (requestingMember == null)
+        {
+            _logger.LogWarning("User {UserId} attempted to add member to project {ProjectId} without membership",
+                requestingUserId, projectId);
+            return (null, "Project not found.");
+        }
+
+        if (requestingMember.Role != ProjectRole.Owner)
+        {
+            _logger.LogWarning("User {UserId} attempted to add member to project {ProjectId} without Owner role",
+                requestingUserId, projectId);
+            return (null, "Only the project owner can add members.");
+        }
+
+        var userToAdd = await _context.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == userIdToAdd);
+
+        if (userToAdd == null)
+        {
+            _logger.LogWarning("User {UserId} not found for add member operation", userIdToAdd);
+            return (null, "User not found.");
+        }
+
+        if (project.Members.Any(m => m.UserId == userIdToAdd))
+        {
+            _logger.LogWarning("User {UserId} is already a member of project {ProjectId}",
+                userIdToAdd, projectId);
+            return (null, "User is already a member of this project.");
+        }
+
+        var newMember = new ProjectMember
+        {
+            ProjectId = projectId,
+            UserId = userIdToAdd,
+            Role = ProjectRole.Member
+        };
+
+        _context.ProjectMembers.Add(newMember);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("User {RequestingUserId} added user {UserId} as Member to project {ProjectId}",
+            requestingUserId, userIdToAdd, projectId);
+
+        return (MapToMemberDto(newMember, userToAdd), null);
+    }
+
+    public async Task<(bool isRemoved, string? errorMessage)> RemoveMemberAsync(
+        Guid projectId,
+        Guid userIdToRemove,
+        Guid requestingUserId)
+    {
+        var project = await _context.Projects
+            .Include(p => p.Members)
+            .FirstOrDefaultAsync(p => p.Id == projectId);
+
+        if (project == null)
+        {
+            _logger.LogWarning("Project {ProjectId} not found for remove member operation", projectId);
+            return (false, "Project not found.");
+        }
+
+        var requestingMember = project.Members.FirstOrDefault(m => m.UserId == requestingUserId);
+        if (requestingMember == null)
+        {
+            _logger.LogWarning("User {UserId} attempted to remove member from project {ProjectId} without membership",
+                requestingUserId, projectId);
+            return (false, "Project not found.");
+        }
+
+        if (requestingMember.Role != ProjectRole.Owner)
+        {
+            _logger.LogWarning("User {UserId} attempted to remove member from project {ProjectId} without Owner role",
+                requestingUserId, projectId);
+            return (false, "Only the project owner can remove members.");
+        }
+
+        var memberToRemove = project.Members.FirstOrDefault(m => m.UserId == userIdToRemove);
+        if (memberToRemove == null)
+        {
+            _logger.LogWarning("User {UserId} is not a member of project {ProjectId}",
+                userIdToRemove, projectId);
+            return (false, "User is not a member of this project.");
+        }
+
+        if (memberToRemove.Role == ProjectRole.Owner)
+        {
+            var ownerCount = project.Members.Count(m => m.Role == ProjectRole.Owner);
+            if (ownerCount == 1)
+            {
+                _logger.LogWarning("User {UserId} attempted to remove the last owner from project {ProjectId}",
+                    requestingUserId, projectId);
+                return (false, "Cannot remove the last owner from the project.");
+            }
+        }
+
+        _context.ProjectMembers.Remove(memberToRemove);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("User {RequestingUserId} removed user {UserId} from project {ProjectId}",
+            requestingUserId, userIdToRemove, projectId);
+
+        return (true, null);
+    }
+
     private static ProjectResponseDto MapToDto(Project project, ProjectRole userRole)
     {
         return new ProjectResponseDto
@@ -163,6 +285,18 @@ public sealed class ProjectService : IProjectService
             Role = userRole.ToString(),
             CreatedAt = project.CreatedAt,
             UpdatedAt = project.UpdatedAt
+        };
+    }
+
+    private static MemberResponseDto MapToMemberDto(ProjectMember member, User user)
+    {
+        return new MemberResponseDto
+        {
+            UserId = user.Id.ToString(),
+            Name = user.Name,
+            Email = user.Email,
+            Role = member.Role.ToString(),
+            JoinedAt = member.CreatedAt
         };
     }
 }

@@ -92,6 +92,58 @@ public sealed class ProjectController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("{projectId}/members")]
+    public async Task<IActionResult> AddMember(Guid projectId, [FromBody] AddMemberDto dto)
+    {
+        var requestingUserId = GetCurrentUserId();
+
+        var (member, errorMessage) = await _projectService.AddMemberAsync(
+            projectId,
+            dto.UserId,
+            requestingUserId);
+
+        if (member == null)
+        {
+            if (errorMessage == "Only the project owner can add members.")
+            {
+                return StatusCode(403, ApiResponse.Fail(errorMessage));
+            }
+            if (errorMessage == "User not found." || errorMessage == "User is already a member of this project.")
+            {
+                return BadRequest(ApiResponse.Fail(errorMessage));
+            }
+            return NotFound(ApiResponse.Fail(errorMessage!));
+        }
+
+        return StatusCode(201, ApiResponse<MemberResponseDto>.Ok(member, "Member added successfully."));
+    }
+
+    [HttpDelete("{projectId}/members/{userId}")]
+    public async Task<IActionResult> RemoveMember(Guid projectId, Guid userId)
+    {
+        var requestingUserId = GetCurrentUserId();
+
+        var (isRemoved, errorMessage) = await _projectService.RemoveMemberAsync(
+            projectId,
+            userId,
+            requestingUserId);
+
+        if (!isRemoved)
+        {
+            if (errorMessage == "Only the project owner can remove members.")
+            {
+                return StatusCode(403, ApiResponse.Fail(errorMessage));
+            }
+            if (errorMessage == "Cannot remove the last owner from the project.")
+            {
+                return BadRequest(ApiResponse.Fail(errorMessage));
+            }
+            return NotFound(ApiResponse.Fail(errorMessage!));
+        }
+
+        return NoContent();
+    }
+
     private Guid GetCurrentUserId()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
