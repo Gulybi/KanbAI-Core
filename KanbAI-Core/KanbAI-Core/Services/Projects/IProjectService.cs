@@ -86,4 +86,26 @@ public interface IProjectService
         Guid projectId,
         Guid userIdToRemove,
         Guid requestingUserId);
+
+    /// <summary>
+    /// Retrieves all members of a project if the requesting user is a member (Owner or Member).
+    /// </summary>
+    /// <param name="projectId">The project ID.</param>
+    /// <param name="requestingUserId">The ID of the authenticated user making the request.</param>
+    /// <returns>
+    /// A list of MemberResponseDto ordered by role descending (Owners first), then by join date ascending.
+    /// Returns null if the project does not exist or the requesting user is not a member.
+    /// </returns>
+    Task<List<MemberResponseDto>?> GetProjectMembersAsync(
+        Guid projectId,
+        Guid requestingUserId);
+
+    /// <summary>
+    /// Adds a user to a project as a Member if the requesting user is the project Owner.
+    /// Overload that accepts AddMemberDto for email-based lookup.
+    /// </summary>
+    Task<(MemberResponseDto? member, string? errorMessage)> AddMemberAsync(
+        Guid projectId,
+        AddMemberDto dto,
+        Guid requestingUserId);
 }

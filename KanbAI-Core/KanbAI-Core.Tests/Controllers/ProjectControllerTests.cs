@@ -403,7 +403,7 @@ public class ProjectControllerTests
         };
 
         _projectServiceMock
-            .Setup(s => s.AddMemberAsync(projectId, userIdToAdd, requestingUserId))
+            .Setup(s => s.AddMemberAsync(projectId, dto, requestingUserId))
             .ReturnsAsync((memberResponse, (string?)null));
 
         // Act
@@ -434,7 +434,7 @@ public class ProjectControllerTests
         };
 
         _projectServiceMock
-            .Setup(s => s.AddMemberAsync(projectId, userIdToAdd, requestingUserId))
+            .Setup(s => s.AddMemberAsync(projectId, dto, requestingUserId))
             .ReturnsAsync(((MemberResponseDto?)null, "Only the project owner can add members."));
 
         // Act
@@ -464,7 +464,7 @@ public class ProjectControllerTests
         };
 
         _projectServiceMock
-            .Setup(s => s.AddMemberAsync(projectId, userIdToAdd, requestingUserId))
+            .Setup(s => s.AddMemberAsync(projectId, dto, requestingUserId))
             .ReturnsAsync(((MemberResponseDto?)null, "Project not found."));
 
         // Act
@@ -494,7 +494,7 @@ public class ProjectControllerTests
         };
 
         _projectServiceMock
-            .Setup(s => s.AddMemberAsync(projectId, userIdToAdd, requestingUserId))
+            .Setup(s => s.AddMemberAsync(projectId, dto, requestingUserId))
             .ReturnsAsync(((MemberResponseDto?)null, "User not found."));
 
         // Act
@@ -524,7 +524,7 @@ public class ProjectControllerTests
         };
 
         _projectServiceMock
-            .Setup(s => s.AddMemberAsync(projectId, userIdToAdd, requestingUserId))
+            .Setup(s => s.AddMemberAsync(projectId, dto, requestingUserId))
             .ReturnsAsync(((MemberResponseDto?)null, "User is already a member of this project."));
 
         // Act
@@ -662,6 +662,236 @@ public class ProjectControllerTests
         var apiResponse = badRequestResult.Value.Should().BeOfType<ApiResponse>().Subject;
         apiResponse.Success.Should().BeFalse();
         apiResponse.Message.Should().Be("Cannot remove the last owner from the project.");
+    }
+
+    #endregion
+
+    #region GetProjectMembers Tests
+
+    [Fact]
+    public async Task GetProjectMembers_ValidRequest_Returns200WithMemberList()
+    {
+        // Arrange
+        var requestingUserId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        SetupUserClaims(requestingUserId);
+
+        var members = new List<MemberResponseDto>
+        {
+            new()
+            {
+                UserId = Guid.NewGuid().ToString(),
+                Name = "Owner User",
+                Email = "owner@example.com",
+                Role = "Owner",
+                JoinedAt = DateTimeOffset.UtcNow.AddDays(-5)
+            },
+            new()
+            {
+                UserId = Guid.NewGuid().ToString(),
+                Name = "Member User",
+                Email = "member@example.com",
+                Role = "Member",
+                JoinedAt = DateTimeOffset.UtcNow.AddDays(-2)
+            }
+        };
+
+        _projectServiceMock
+            .Setup(s => s.GetProjectMembersAsync(projectId, requestingUserId))
+            .ReturnsAsync(members);
+
+        // Act
+        var result = await _controller.GetProjectMembers(projectId);
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.StatusCode.Should().Be(200);
+
+        var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<List<MemberResponseDto>>>().Subject;
+        apiResponse.Success.Should().BeTrue();
+        apiResponse.Data.Should().HaveCount(2);
+        apiResponse.Data.Should().BeEquivalentTo(members);
+    }
+
+    [Fact]
+    public async Task GetProjectMembers_ProjectNotFound_Returns404()
+    {
+        // Arrange
+        var requestingUserId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        SetupUserClaims(requestingUserId);
+
+        _projectServiceMock
+            .Setup(s => s.GetProjectMembersAsync(projectId, requestingUserId))
+            .ReturnsAsync((List<MemberResponseDto>?)null);
+
+        // Act
+        var result = await _controller.GetProjectMembers(projectId);
+
+        // Assert
+        var notFoundResult = result.Should().BeOfType<NotFoundObjectResult>().Subject;
+        notFoundResult.StatusCode.Should().Be(404);
+
+        var apiResponse = notFoundResult.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("Project not found.");
+    }
+
+    [Fact]
+    public async Task GetProjectMembers_UserNotMember_Returns404()
+    {
+        // Arrange
+        var requestingUserId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        SetupUserClaims(requestingUserId);
+
+        _projectServiceMock
+            .Setup(s => s.GetProjectMembersAsync(projectId, requestingUserId))
+            .ReturnsAsync((List<MemberResponseDto>?)null);
+
+        // Act
+        var result = await _controller.GetProjectMembers(projectId);
+
+        // Assert
+        var notFoundResult = result.Should().BeOfType<NotFoundObjectResult>().Subject;
+        notFoundResult.StatusCode.Should().Be(404);
+
+        var apiResponse = notFoundResult.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("Project not found.");
+    }
+
+    #endregion
+
+    #region Enhanced AddMember Tests
+
+    [Fact]
+    public async Task AddMember_ValidEmail_Returns201()
+    {
+        // Arrange
+        var requestingUserId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var userIdToAdd = Guid.NewGuid();
+        SetupUserClaims(requestingUserId);
+
+        var dto = new AddMemberDto
+        {
+            Email = "newmember@example.com"
+        };
+
+        var memberResponse = new MemberResponseDto
+        {
+            UserId = userIdToAdd.ToString(),
+            Name = "New Member",
+            Email = "newmember@example.com",
+            Role = "Member",
+            JoinedAt = DateTimeOffset.UtcNow
+        };
+
+        _projectServiceMock
+            .Setup(s => s.AddMemberAsync(projectId, dto, requestingUserId))
+            .ReturnsAsync((memberResponse, (string?)null));
+
+        // Act
+        var result = await _controller.AddMember(projectId, dto);
+
+        // Assert
+        var createdResult = result.Should().BeOfType<ObjectResult>().Subject;
+        createdResult.StatusCode.Should().Be(201);
+
+        var apiResponse = createdResult.Value.Should().BeOfType<ApiResponse<MemberResponseDto>>().Subject;
+        apiResponse.Success.Should().BeTrue();
+        apiResponse.Data.Should().BeEquivalentTo(memberResponse);
+        apiResponse.Message.Should().Be("Member added successfully.");
+    }
+
+    [Fact]
+    public async Task AddMember_EmailNotFound_Returns400()
+    {
+        // Arrange
+        var requestingUserId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        SetupUserClaims(requestingUserId);
+
+        var dto = new AddMemberDto
+        {
+            Email = "nonexistent@example.com"
+        };
+
+        _projectServiceMock
+            .Setup(s => s.AddMemberAsync(projectId, dto, requestingUserId))
+            .ReturnsAsync(((MemberResponseDto?)null, "No user found with email address: nonexistent@example.com"));
+
+        // Act
+        var result = await _controller.AddMember(projectId, dto);
+
+        // Assert
+        var badRequestResult = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequestResult.StatusCode.Should().Be(400);
+
+        var apiResponse = badRequestResult.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("No user found with email address: nonexistent@example.com");
+    }
+
+    [Fact]
+    public async Task AddMember_BothIdentifiers_Returns400()
+    {
+        // Arrange
+        var requestingUserId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        SetupUserClaims(requestingUserId);
+
+        var dto = new AddMemberDto
+        {
+            UserId = Guid.NewGuid(),
+            Email = "user@example.com"
+        };
+
+        _projectServiceMock
+            .Setup(s => s.AddMemberAsync(projectId, dto, requestingUserId))
+            .ReturnsAsync(((MemberResponseDto?)null, "Provide either UserId or Email, not both."));
+
+        // Act
+        var result = await _controller.AddMember(projectId, dto);
+
+        // Assert
+        var badRequestResult = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequestResult.StatusCode.Should().Be(400);
+
+        var apiResponse = badRequestResult.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("Provide either UserId or Email, not both.");
+    }
+
+    [Fact]
+    public async Task AddMember_NoIdentifiers_Returns400()
+    {
+        // Arrange
+        var requestingUserId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        SetupUserClaims(requestingUserId);
+
+        var dto = new AddMemberDto
+        {
+            UserId = null,
+            Email = null
+        };
+
+        _projectServiceMock
+            .Setup(s => s.AddMemberAsync(projectId, dto, requestingUserId))
+            .ReturnsAsync(((MemberResponseDto?)null, "Either UserId or Email is required."));
+
+        // Act
+        var result = await _controller.AddMember(projectId, dto);
+
+        // Assert
+        var badRequestResult = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequestResult.StatusCode.Should().Be(400);
+
+        var apiResponse = badRequestResult.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("Either UserId or Email is required.");
     }
 
     #endregion

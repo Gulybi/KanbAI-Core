@@ -804,6 +804,376 @@ public class ProjectServiceTests
 
     #endregion
 
+    #region GetProjectMembersAsync Tests
+
+    [Fact]
+    public async Task GetProjectMembersAsync_ValidRequest_ReturnsOrderedMembers()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+        var member1Id = Guid.NewGuid();
+        var member2Id = Guid.NewGuid();
+
+        var project = new Project { Name = "Test Project" };
+        context.Projects.Add(project);
+
+        var owner = new User { Id = ownerId, Name = "Owner User", Email = "owner@example.com", PasswordHash = "hash" };
+        var member1 = new User { Id = member1Id, Name = "Member One", Email = "member1@example.com", PasswordHash = "hash" };
+        var member2 = new User { Id = member2Id, Name = "Member Two", Email = "member2@example.com", PasswordHash = "hash" };
+        context.Users.AddRange(owner, member1, member2);
+
+        var ownerMembership = new ProjectMember { ProjectId = project.Id, UserId = ownerId, Role = ProjectRole.Owner, CreatedAt = DateTimeOffset.UtcNow.AddDays(-3) };
+        var memberMembership1 = new ProjectMember { ProjectId = project.Id, UserId = member1Id, Role = ProjectRole.Member, CreatedAt = DateTimeOffset.UtcNow.AddDays(-2) };
+        var memberMembership2 = new ProjectMember { ProjectId = project.Id, UserId = member2Id, Role = ProjectRole.Member, CreatedAt = DateTimeOffset.UtcNow.AddDays(-1) };
+        context.ProjectMembers.AddRange(ownerMembership, memberMembership1, memberMembership2);
+
+        await context.SaveChangesAsync();
+
+        // Act
+        var result = await service.GetProjectMembersAsync(project.Id, ownerId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Should().HaveCount(3);
+        result![0].UserId.Should().Be(ownerId.ToString());
+        result[0].Role.Should().Be("Owner");
+        result[1].UserId.Should().Be(member1Id.ToString());
+        result[1].Role.Should().Be("Member");
+        result[2].UserId.Should().Be(member2Id.ToString());
+        result[2].Role.Should().Be("Member");
+    }
+
+    [Fact]
+    public async Task GetProjectMembersAsync_EmptyProject_ReturnsOnlyOwner()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+
+        var project = new Project { Name = "Empty Project" };
+        context.Projects.Add(project);
+
+        var owner = new User { Id = ownerId, Name = "Owner User", Email = "owner@example.com", PasswordHash = "hash" };
+        context.Users.Add(owner);
+
+        var ownerMembership = new ProjectMember { ProjectId = project.Id, UserId = ownerId, Role = ProjectRole.Owner };
+        context.ProjectMembers.Add(ownerMembership);
+
+        await context.SaveChangesAsync();
+
+        // Act
+        var result = await service.GetProjectMembersAsync(project.Id, ownerId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Should().ContainSingle();
+        result![0].UserId.Should().Be(ownerId.ToString());
+        result[0].Role.Should().Be("Owner");
+    }
+
+    [Fact]
+    public async Task GetProjectMembersAsync_ProjectNotFound_ReturnsNull()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var userId = Guid.NewGuid();
+        var nonExistentProjectId = Guid.NewGuid();
+
+        // Act
+        var result = await service.GetProjectMembersAsync(nonExistentProjectId, userId);
+
+        // Assert
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetProjectMembersAsync_RequestingUserNotMember_ReturnsNull()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+        var nonMemberId = Guid.NewGuid();
+
+        var project = new Project { Name = "Test Project" };
+        context.Projects.Add(project);
+
+        var owner = new User { Id = ownerId, Name = "Owner User", Email = "owner@example.com", PasswordHash = "hash" };
+        context.Users.Add(owner);
+
+        var ownerMembership = new ProjectMember { ProjectId = project.Id, UserId = ownerId, Role = ProjectRole.Owner };
+        context.ProjectMembers.Add(ownerMembership);
+
+        await context.SaveChangesAsync();
+
+        // Act
+        var result = await service.GetProjectMembersAsync(project.Id, nonMemberId);
+
+        // Assert
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetProjectMembersAsync_MemberCanView_Success()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+        var memberId = Guid.NewGuid();
+
+        var project = new Project { Name = "Test Project" };
+        context.Projects.Add(project);
+
+        var owner = new User { Id = ownerId, Name = "Owner User", Email = "owner@example.com", PasswordHash = "hash" };
+        var member = new User { Id = memberId, Name = "Member User", Email = "member@example.com", PasswordHash = "hash" };
+        context.Users.AddRange(owner, member);
+
+        var ownerMembership = new ProjectMember { ProjectId = project.Id, UserId = ownerId, Role = ProjectRole.Owner };
+        var memberMembership = new ProjectMember { ProjectId = project.Id, UserId = memberId, Role = ProjectRole.Member };
+        context.ProjectMembers.AddRange(ownerMembership, memberMembership);
+
+        await context.SaveChangesAsync();
+
+        // Act
+        var result = await service.GetProjectMembersAsync(project.Id, memberId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Should().HaveCount(2);
+    }
+
+    #endregion
+
+    #region Enhanced AddMemberAsync Tests
+
+    [Fact]
+    public async Task AddMemberAsync_ValidEmail_ResolvesAndAddsMember()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+        var userToAddId = Guid.NewGuid();
+
+        var project = new Project { Name = "Test Project" };
+        context.Projects.Add(project);
+
+        var owner = new User { Id = ownerId, Name = "Owner User", Email = "owner@example.com", PasswordHash = "hash" };
+        var userToAdd = new User { Id = userToAddId, Name = "New Member", Email = "newmember@example.com", PasswordHash = "hash" };
+        context.Users.AddRange(owner, userToAdd);
+
+        var ownerMembership = new ProjectMember { ProjectId = project.Id, UserId = ownerId, Role = ProjectRole.Owner };
+        context.ProjectMembers.Add(ownerMembership);
+
+        await context.SaveChangesAsync();
+
+        var dto = new AddMemberDto
+        {
+            Email = "newmember@example.com"
+        };
+
+        // Act
+        var (member, errorMessage) = await service.AddMemberAsync(project.Id, dto, ownerId);
+
+        // Assert
+        member.Should().NotBeNull();
+        errorMessage.Should().BeNull();
+        member!.UserId.Should().Be(userToAddId.ToString());
+        member.Email.Should().Be("newmember@example.com");
+        member.Role.Should().Be("Member");
+    }
+
+    [Fact]
+    public async Task AddMemberAsync_CaseInsensitiveEmail_ResolvesCorrectly()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+        var userToAddId = Guid.NewGuid();
+
+        var project = new Project { Name = "Test Project" };
+        context.Projects.Add(project);
+
+        var owner = new User { Id = ownerId, Name = "Owner User", Email = "owner@example.com", PasswordHash = "hash" };
+        var userToAdd = new User { Id = userToAddId, Name = "New Member", Email = "user@example.com", PasswordHash = "hash" };
+        context.Users.AddRange(owner, userToAdd);
+
+        var ownerMembership = new ProjectMember { ProjectId = project.Id, UserId = ownerId, Role = ProjectRole.Owner };
+        context.ProjectMembers.Add(ownerMembership);
+
+        await context.SaveChangesAsync();
+
+        var dto = new AddMemberDto
+        {
+            Email = "User@Example.COM"
+        };
+
+        // Act
+        var (member, errorMessage) = await service.AddMemberAsync(project.Id, dto, ownerId);
+
+        // Assert
+        member.Should().NotBeNull();
+        errorMessage.Should().BeNull();
+        member!.UserId.Should().Be(userToAddId.ToString());
+    }
+
+    [Fact]
+    public async Task AddMemberAsync_EmailWithWhitespace_TrimsAndResolves()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+        var userToAddId = Guid.NewGuid();
+
+        var project = new Project { Name = "Test Project" };
+        context.Projects.Add(project);
+
+        var owner = new User { Id = ownerId, Name = "Owner User", Email = "owner@example.com", PasswordHash = "hash" };
+        var userToAdd = new User { Id = userToAddId, Name = "New Member", Email = "user@example.com", PasswordHash = "hash" };
+        context.Users.AddRange(owner, userToAdd);
+
+        var ownerMembership = new ProjectMember { ProjectId = project.Id, UserId = ownerId, Role = ProjectRole.Owner };
+        context.ProjectMembers.Add(ownerMembership);
+
+        await context.SaveChangesAsync();
+
+        var dto = new AddMemberDto
+        {
+            Email = "  user@example.com  "
+        };
+
+        // Act
+        var (member, errorMessage) = await service.AddMemberAsync(project.Id, dto, ownerId);
+
+        // Assert
+        member.Should().NotBeNull();
+        errorMessage.Should().BeNull();
+        member!.UserId.Should().Be(userToAddId.ToString());
+    }
+
+    [Fact]
+    public async Task AddMemberAsync_EmailNotFound_ReturnsSpecificError()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+
+        var project = new Project { Name = "Test Project" };
+        context.Projects.Add(project);
+
+        var owner = new User { Id = ownerId, Name = "Owner User", Email = "owner@example.com", PasswordHash = "hash" };
+        context.Users.Add(owner);
+
+        var ownerMembership = new ProjectMember { ProjectId = project.Id, UserId = ownerId, Role = ProjectRole.Owner };
+        context.ProjectMembers.Add(ownerMembership);
+
+        await context.SaveChangesAsync();
+
+        var dto = new AddMemberDto
+        {
+            Email = "nonexistent@example.com"
+        };
+
+        // Act
+        var (member, errorMessage) = await service.AddMemberAsync(project.Id, dto, ownerId);
+
+        // Assert
+        member.Should().BeNull();
+        errorMessage.Should().Be("No user found with email address: nonexistent@example.com");
+    }
+
+    [Fact]
+    public async Task AddMemberAsync_BothUserIdAndEmail_ReturnsValidationError()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+
+        var dto = new AddMemberDto
+        {
+            UserId = Guid.NewGuid(),
+            Email = "user@example.com"
+        };
+
+        // Act
+        var (member, errorMessage) = await service.AddMemberAsync(projectId, dto, ownerId);
+
+        // Assert
+        member.Should().BeNull();
+        errorMessage.Should().Be("Provide either UserId or Email, not both.");
+    }
+
+    [Fact]
+    public async Task AddMemberAsync_NeitherUserIdNorEmail_ReturnsValidationError()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+
+        var dto = new AddMemberDto
+        {
+            UserId = null,
+            Email = null
+        };
+
+        // Act
+        var (member, errorMessage) = await service.AddMemberAsync(projectId, dto, ownerId);
+
+        // Assert
+        member.Should().BeNull();
+        errorMessage.Should().Be("Either UserId or Email is required.");
+    }
+
+    [Fact]
+    public async Task AddMemberAsync_LegacyUserIdOnly_StillWorks()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new ProjectService(context, _loggerMock.Object);
+        var ownerId = Guid.NewGuid();
+        var userToAddId = Guid.NewGuid();
+
+        var project = new Project { Name = "Test Project" };
+        context.Projects.Add(project);
+
+        var owner = new User { Id = ownerId, Name = "Owner User", Email = "owner@example.com", PasswordHash = "hash" };
+        var userToAdd = new User { Id = userToAddId, Name = "New Member", Email = "newmember@example.com", PasswordHash = "hash" };
+        context.Users.AddRange(owner, userToAdd);
+
+        var ownerMembership = new ProjectMember { ProjectId = project.Id, UserId = ownerId, Role = ProjectRole.Owner };
+        context.ProjectMembers.Add(ownerMembership);
+
+        await context.SaveChangesAsync();
+
+        var dto = new AddMemberDto
+        {
+            UserId = userToAddId
+        };
+
+        // Act
+        var (member, errorMessage) = await service.AddMemberAsync(project.Id, dto, ownerId);
+
+        // Assert
+        member.Should().NotBeNull();
+        errorMessage.Should().BeNull();
+        member!.UserId.Should().Be(userToAddId.ToString());
+        member.Role.Should().Be("Member");
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private ApplicationDbContext CreateInMemoryContext()

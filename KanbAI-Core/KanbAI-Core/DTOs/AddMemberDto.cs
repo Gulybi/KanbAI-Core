@@ -4,6 +4,8 @@ using System.ComponentModel.DataAnnotations;
 
 public record AddMemberDto
 {
-    [Required(ErrorMessage = "User ID is required.")]
-    public required Guid UserId { get; init; }
+    public Guid? UserId { get; init; }
+
+    [EmailAddress(ErrorMessage = "Invalid email format.")]
+    public string? Email { get; init; }
 }

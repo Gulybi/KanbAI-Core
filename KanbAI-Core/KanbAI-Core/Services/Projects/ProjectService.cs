@@ -275,6 +275,90 @@ public sealed class ProjectService : IProjectService
         return (true, null);
     }
 
+    public async Task<List<MemberResponseDto>?> GetProjectMembersAsync(
+        Guid projectId,
+        Guid requestingUserId)
+    {
+        var project = await _context.Projects
+            .AsNoTracking()
+            .Include(p => p.Members)
+                .ThenInclude(m => m.User)
+            .FirstOrDefaultAsync(p => p.Id == projectId);
+
+        if (project == null)
+        {
+            _logger.LogWarning("Project {ProjectId} not found for get members operation", projectId);
+            return null;
+        }
+
+        var requestingMember = project.Members.FirstOrDefault(m => m.UserId == requestingUserId);
+        if (requestingMember == null)
+        {
+            _logger.LogWarning("User {UserId} attempted to get members for project {ProjectId} without membership",
+                requestingUserId, projectId);
+            return null;
+        }
+
+        var members = project.Members
+            .OrderByDescending(m => m.Role)
+            .ThenBy(m => m.CreatedAt)
+            .Select(m => MapToMemberDto(m, m.User))
+            .ToList();
+
+        _logger.LogInformation("User {UserId} retrieved {Count} members for project {ProjectId}",
+            requestingUserId, members.Count, projectId);
+
+        return members;
+    }
+
+    public async Task<(MemberResponseDto? member, string? errorMessage)> AddMemberAsync(
+        Guid projectId,
+        AddMemberDto dto,
+        Guid requestingUserId)
+    {
+        var (userId, resolveError) = await ResolveUserIdAsync(dto.UserId, dto.Email);
+        if (userId == null)
+        {
+            return (null, resolveError);
+        }
+
+        return await AddMemberAsync(projectId, userId.Value, requestingUserId);
+    }
+
+    private async Task<(Guid? userId, string? errorMessage)> ResolveUserIdAsync(
+        Guid? userIdFromDto,
+        string? emailFromDto)
+    {
+        if (userIdFromDto.HasValue && !string.IsNullOrWhiteSpace(emailFromDto))
+        {
+            return (null, "Provide either UserId or Email, not both.");
+        }
+
+        if (!userIdFromDto.HasValue && string.IsNullOrWhiteSpace(emailFromDto))
+        {
+            return (null, "Either UserId or Email is required.");
+        }
+
+        if (userIdFromDto.HasValue)
+        {
+            return (userIdFromDto.Value, null);
+        }
+
+        var trimmedEmail = emailFromDto!.Trim();
+        var user = await _context.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == trimmedEmail.ToLower());
+
+        if (user == null)
+        {
+            _logger.LogWarning("No user found with email address: {Email}", trimmedEmail);
+            return (null, $"No user found with email address: {trimmedEmail}");
+        }
+
+        _logger.LogInformation("Resolved email {Email} to user {UserId}", trimmedEmail, user.Id);
+        return (user.Id, null);
+    }
+
     private static ProjectResponseDto MapToDto(Project project, ProjectRole userRole)
     {
         return new ProjectResponseDto

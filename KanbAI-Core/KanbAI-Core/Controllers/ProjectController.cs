@@ -99,7 +99,7 @@ public sealed class ProjectController : ControllerBase
 
         var (member, errorMessage) = await _projectService.AddMemberAsync(
             projectId,
-            dto.UserId,
+            dto,
             requestingUserId);
 
         if (member == null)
@@ -108,7 +108,11 @@ public sealed class ProjectController : ControllerBase
             {
                 return StatusCode(403, ApiResponse.Fail(errorMessage));
             }
-            if (errorMessage == "User not found." || errorMessage == "User is already a member of this project.")
+            if (errorMessage == "User not found." ||
+                errorMessage == "User is already a member of this project." ||
+                errorMessage!.StartsWith("No user found with email address:") ||
+                errorMessage == "Provide either UserId or Email, not both." ||
+                errorMessage == "Either UserId or Email is required.")
             {
                 return BadRequest(ApiResponse.Fail(errorMessage));
             }
@@ -142,6 +146,21 @@ public sealed class ProjectController : ControllerBase
         }
 
         return NoContent();
+    }
+
+    [HttpGet("{projectId}/members")]
+    public async Task<IActionResult> GetProjectMembers(Guid projectId)
+    {
+        var requestingUserId = GetCurrentUserId();
+
+        var members = await _projectService.GetProjectMembersAsync(projectId, requestingUserId);
+
+        if (members == null)
+        {
+            return NotFound(ApiResponse.Fail("Project not found."));
+        }
+
+        return Ok(ApiResponse<List<MemberResponseDto>>.Ok(members));
     }
 
     private Guid GetCurrentUserId()
