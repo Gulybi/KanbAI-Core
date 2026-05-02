@@ -39,6 +39,22 @@ builder.Services
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SecretKey)),
             ClockSkew = TimeSpan.Zero
         };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services
@@ -46,7 +62,8 @@ builder.Services
     .AddPersistence(builder.Configuration)
     .AddApiInfrastructure()
     .AddAuthServices()
-    .AddCorsPolicy(builder.Configuration);
+    .AddCorsPolicy(builder.Configuration)
+    .AddSignalRInfrastructure();
 
 var app = builder.Build();
 
