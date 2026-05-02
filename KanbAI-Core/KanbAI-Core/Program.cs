@@ -5,6 +5,7 @@ using KanbAI_Core.Services.Auth;
 using KanbAI_Core.Services.Columns;
 using KanbAI_Core.Services.Projects;
 using KanbAI_Core.Services.Tasks;
+using KanbAI_Core.Hubs;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 
@@ -18,6 +19,7 @@ builder.Services.AddTransient<ITokenService, TokenService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IColumnService, ColumnService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
+builder.Services.AddSignalR();
 
 builder.Services
     .AddAuthentication(options =>
@@ -84,6 +86,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<KanbanHub>("/hubs/kanban");
 
 app.Run();
 
