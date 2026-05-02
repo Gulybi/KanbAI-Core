@@ -1,6 +1,5 @@
 using KanbAI_Core.Data;
 using KanbAI_Core.Middleware;
-using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.EntityFrameworkCore;
 
 namespace KanbAI_Core.Extensions;
@@ -35,16 +34,12 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers Negotiate authentication and authorization with a fallback policy.
+    /// Registers authorization services without a global fallback policy.
+    /// Controllers must explicitly declare authorization requirements using [Authorize] or [AllowAnonymous].
     /// </summary>
     public static IServiceCollection AddAuthServices(this IServiceCollection services)
     {
-        services.AddAuthentication(NegotiateDefaults.AuthenticationScheme)
-            .AddNegotiate();
-        services.AddAuthorization(options =>
-        {
-            options.FallbackPolicy = options.DefaultPolicy;
-        });
+        services.AddAuthorization();
         return services;
     }
 

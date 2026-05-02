@@ -125,23 +125,6 @@ public class ServiceCollectionExtensionTests
     #region AddAuthServices
 
     [Fact]
-    public void AddAuthServices_RegistersAuthentication()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddLogging();
-
-        // Act
-        services.AddAuthServices();
-        var provider = services.BuildServiceProvider();
-
-        // Assert
-        var schemeProvider = provider.GetService<IAuthenticationSchemeProvider>();
-        schemeProvider.Should().NotBeNull(
-            "IAuthenticationSchemeProvider must be resolvable after calling AddAuthServices");
-    }
-
-    [Fact]
     public void AddAuthServices_RegistersAuthorization()
     {
         // Arrange
@@ -156,6 +139,24 @@ public class ServiceCollectionExtensionTests
         var policyProvider = provider.GetService<IAuthorizationPolicyProvider>();
         policyProvider.Should().NotBeNull(
             "IAuthorizationPolicyProvider must be resolvable after calling AddAuthServices");
+    }
+
+    [Fact]
+    public void AddAuthServices_DoesNotRegisterAuthentication()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // Act
+        services.AddAuthServices();
+        var provider = services.BuildServiceProvider();
+
+        // Assert
+        var schemeProvider = provider.GetService<IAuthenticationSchemeProvider>();
+        schemeProvider.Should().BeNull(
+            "IAuthenticationSchemeProvider should not be registered by AddAuthServices. " +
+            "Authentication is configured separately in Program.cs (JWT Bearer).");
     }
 
     #endregion
