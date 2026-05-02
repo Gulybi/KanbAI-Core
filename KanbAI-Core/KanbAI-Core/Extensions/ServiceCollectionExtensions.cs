@@ -57,9 +57,20 @@ public static class ServiceCollectionExtensions
             {
                 policy.WithOrigins(allowedOrigins)
                       .WithMethods("GET", "POST", "PUT", "DELETE", "PATCH")
-                      .WithHeaders("Content-Type", "Authorization");
+                      .WithHeaders("Content-Type", "Authorization")
+                      .AllowCredentials();
             });
         });
+        return services;
+    }
+
+    /// <summary>
+    /// Registers SignalR services for real-time bidirectional communication.
+    /// Uses default JSON serialization and hub options.
+    /// </summary>
+    public static IServiceCollection AddSignalRInfrastructure(this IServiceCollection services)
+    {
+        services.AddSignalR();
         return services;
     }
 }
