@@ -9,6 +9,8 @@
       "Bash(grep \"\\\\.cs$\")",
       "Bash(xargs -I {} find {} -type f -name \"*.cs\")",
       "Bash(xargs grep *)",
+      "Bash(grep -v \"^bin$\")",
+      "Bash(dotnet restore *)"
       "Bash(grep -E \"\\\\.cs$\")",
       "Bash(grep -v \"^bin$\")",
       "Bash(grep -v \"^obj$\")"
