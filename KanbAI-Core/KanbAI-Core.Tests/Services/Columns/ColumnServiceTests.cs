@@ -1,9 +1,11 @@
 using FluentAssertions;
 using KanbAI_Core.Data;
 using KanbAI_Core.DTOs;
+using KanbAI_Core.Hubs;
 using KanbAI_Core.Models.Entities;
 using KanbAI_Core.Models.Enums;
 using KanbAI_Core.Services.Columns;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -13,10 +15,24 @@ namespace KanbAI_Core.Tests.Services.Columns;
 public class ColumnServiceTests
 {
     private readonly Mock<ILogger<ColumnService>> _loggerMock;
+    private readonly Mock<IHubContext<KanbanHub>> _hubContextMock;
 
     public ColumnServiceTests()
     {
         _loggerMock = new Mock<ILogger<ColumnService>>();
+        _hubContextMock = CreateHubContextMock();
+    }
+
+    private static Mock<IHubContext<KanbanHub>> CreateHubContextMock()
+    {
+        var clientProxy = new Mock<IClientProxy>();
+        var clients = new Mock<IHubClients>();
+        clients.Setup(c => c.Group(It.IsAny<string>())).Returns(clientProxy.Object);
+        clients.Setup(c => c.All).Returns(clientProxy.Object);
+
+        var hubContext = new Mock<IHubContext<KanbanHub>>();
+        hubContext.Setup(h => h.Clients).Returns(clients.Object);
+        return hubContext;
     }
 
     #region GetProjectColumnsAsync Tests
@@ -26,7 +42,7 @@ public class ColumnServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ColumnService(context, _loggerMock.Object);
+        var service = new ColumnService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
 
@@ -62,7 +78,7 @@ public class ColumnServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ColumnService(context, _loggerMock.Object);
+        var service = new ColumnService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var otherUserId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
@@ -90,7 +106,7 @@ public class ColumnServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ColumnService(context, _loggerMock.Object);
+        var service = new ColumnService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var nonExistentProjectId = Guid.NewGuid();
 
@@ -106,7 +122,7 @@ public class ColumnServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ColumnService(context, _loggerMock.Object);
+        var service = new ColumnService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
 
@@ -135,7 +151,7 @@ public class ColumnServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ColumnService(context, _loggerMock.Object);
+        var service = new ColumnService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
 
@@ -174,7 +190,7 @@ public class ColumnServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ColumnService(context, _loggerMock.Object);
+        var service = new ColumnService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
 
@@ -211,7 +227,7 @@ public class ColumnServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ColumnService(context, _loggerMock.Object);
+        var service = new ColumnService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
 
@@ -242,7 +258,7 @@ public class ColumnServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ColumnService(context, _loggerMock.Object);
+        var service = new ColumnService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var otherUserId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
@@ -269,7 +285,7 @@ public class ColumnServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ColumnService(context, _loggerMock.Object);
+        var service = new ColumnService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var nonExistentProjectId = Guid.NewGuid();
 
@@ -291,7 +307,7 @@ public class ColumnServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ColumnService(context, _loggerMock.Object);
+        var service = new ColumnService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
 
@@ -323,7 +339,7 @@ public class ColumnServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ColumnService(context, _loggerMock.Object);
+        var service = new ColumnService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var otherUserId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
@@ -356,7 +372,7 @@ public class ColumnServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ColumnService(context, _loggerMock.Object);
+        var service = new ColumnService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var nonExistentColumnId = Guid.NewGuid();
 

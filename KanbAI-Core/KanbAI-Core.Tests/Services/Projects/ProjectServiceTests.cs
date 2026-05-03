@@ -1,9 +1,11 @@
 using FluentAssertions;
 using KanbAI_Core.Data;
 using KanbAI_Core.DTOs;
+using KanbAI_Core.Hubs;
 using KanbAI_Core.Models.Entities;
 using KanbAI_Core.Models.Enums;
 using KanbAI_Core.Services.Projects;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -13,10 +15,24 @@ namespace KanbAI_Core.Tests.Services.Projects;
 public class ProjectServiceTests
 {
     private readonly Mock<ILogger<ProjectService>> _loggerMock;
+    private readonly Mock<IHubContext<KanbanHub>> _hubContextMock;
 
     public ProjectServiceTests()
     {
         _loggerMock = new Mock<ILogger<ProjectService>>();
+        _hubContextMock = CreateHubContextMock();
+    }
+
+    private static Mock<IHubContext<KanbanHub>> CreateHubContextMock()
+    {
+        var clientProxy = new Mock<IClientProxy>();
+        var clients = new Mock<IHubClients>();
+        clients.Setup(c => c.Group(It.IsAny<string>())).Returns(clientProxy.Object);
+        clients.Setup(c => c.All).Returns(clientProxy.Object);
+
+        var hubContext = new Mock<IHubContext<KanbanHub>>();
+        hubContext.Setup(h => h.Clients).Returns(clients.Object);
+        return hubContext;
     }
 
     #region CreateProjectAsync Tests
@@ -26,7 +42,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var dto = new CreateProjectDto
         {
@@ -58,7 +74,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var dto = new CreateProjectDto
         {
@@ -85,7 +101,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
 
         var project1 = new Project { Name = "Project 1", Description = "Desc 1" };
@@ -112,7 +128,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
 
         // Act
@@ -127,7 +143,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var otherUserId = Guid.NewGuid();
 
@@ -158,7 +174,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
 
         var project = new Project { Name = "Test Project", Description = "Test Desc" };
@@ -184,7 +200,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var otherUserId = Guid.NewGuid();
 
@@ -208,7 +224,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var nonExistentProjectId = Guid.NewGuid();
 
@@ -228,7 +244,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
 
         var project = new Project { Name = "Original Name", Description = "Original Desc" };
@@ -267,7 +283,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var otherUserId = Guid.NewGuid();
 
@@ -300,7 +316,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var nonExistentProjectId = Guid.NewGuid();
 
@@ -326,7 +342,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
 
         var project = new Project { Name = "Test Project" };
@@ -356,7 +372,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
 
         var project = new Project { Name = "Test Project" };
@@ -383,7 +399,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var otherUserId = Guid.NewGuid();
 
@@ -411,7 +427,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var nonExistentProjectId = Guid.NewGuid();
 
@@ -432,7 +448,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
         var userToAddId = Guid.NewGuid();
 
@@ -470,7 +486,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var memberId = Guid.NewGuid();
         var userToAddId = Guid.NewGuid();
 
@@ -502,7 +518,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
         var userToAddId = Guid.NewGuid();
         var nonExistentProjectId = Guid.NewGuid();
@@ -520,7 +536,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
         var requestingUserId = Guid.NewGuid();
         var userToAddId = Guid.NewGuid();
@@ -549,7 +565,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
         var nonExistentUserId = Guid.NewGuid();
 
@@ -574,7 +590,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
         var existingMemberId = Guid.NewGuid();
 
@@ -612,7 +628,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
         var memberToRemoveId = Guid.NewGuid();
 
@@ -642,7 +658,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
         var memberId = Guid.NewGuid();
         var memberToRemoveId = Guid.NewGuid();
@@ -674,7 +690,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
         var memberToRemoveId = Guid.NewGuid();
         var nonExistentProjectId = Guid.NewGuid();
@@ -692,7 +708,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
         var requestingUserId = Guid.NewGuid();
         var memberToRemoveId = Guid.NewGuid();
@@ -719,7 +735,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
         var nonMemberId = Guid.NewGuid();
 
@@ -744,7 +760,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
 
         var project = new Project { Name = "Test Project" };
@@ -772,7 +788,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var owner1Id = Guid.NewGuid();
         var owner2Id = Guid.NewGuid();
 
@@ -811,7 +827,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
         var member1Id = Guid.NewGuid();
         var member2Id = Guid.NewGuid();
@@ -850,7 +866,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
 
         var project = new Project { Name = "Empty Project" };
@@ -879,7 +895,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var nonExistentProjectId = Guid.NewGuid();
 
@@ -895,7 +911,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
         var nonMemberId = Guid.NewGuid();
 
@@ -922,7 +938,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
         var memberId = Guid.NewGuid();
 
@@ -956,7 +972,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
         var userToAddId = Guid.NewGuid();
 
@@ -993,7 +1009,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
         var userToAddId = Guid.NewGuid();
 
@@ -1028,7 +1044,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
         var userToAddId = Guid.NewGuid();
 
@@ -1063,7 +1079,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
 
         var project = new Project { Name = "Test Project" };
@@ -1095,7 +1111,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
 
@@ -1118,7 +1134,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
 
@@ -1141,7 +1157,7 @@ public class ProjectServiceTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new ProjectService(context, _loggerMock.Object);
+        var service = new ProjectService(context, _loggerMock.Object, _hubContextMock.Object);
         var ownerId = Guid.NewGuid();
         var userToAddId = Guid.NewGuid();
 

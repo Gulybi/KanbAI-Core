@@ -2,7 +2,9 @@ namespace KanbAI_Core.Services.Columns;
 
 using KanbAI_Core.Data;
 using KanbAI_Core.DTOs;
+using KanbAI_Core.Hubs;
 using KanbAI_Core.Models.Entities;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -10,11 +12,16 @@ public sealed class ColumnService : IColumnService
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<ColumnService> _logger;
+    private readonly IHubContext<KanbanHub> _hubContext;
 
-    public ColumnService(ApplicationDbContext context, ILogger<ColumnService> logger)
+    public ColumnService(
+        ApplicationDbContext context,
+        ILogger<ColumnService> logger,
+        IHubContext<KanbanHub> hubContext)
     {
         _context = context;
         _logger = logger;
+        _hubContext = hubContext;
     }
 
     public async Task<List<ColumnResponseDto>?> GetProjectColumnsAsync(Guid projectId, Guid userId)
@@ -82,7 +89,13 @@ public sealed class ColumnService : IColumnService
 
         _logger.LogInformation("User {UserId} created column {ColumnId} in project {ProjectId}", userId, column.Id, projectId);
 
-        return MapToDto(column);
+        var payload = MapToDto(column);
+        await BroadcastAsync(
+            BuildProjectGroupName(projectId),
+            "ColumnCreated",
+            payload);
+
+        return payload;
     }
 
     public async Task<bool> DeleteColumnAsync(Guid columnId, Guid userId)
@@ -105,12 +118,43 @@ public sealed class ColumnService : IColumnService
             return false;
         }
 
+        var projectId = column.ProjectId;
         _context.BoardColumns.Remove(column);
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("User {UserId} deleted column {ColumnId}", userId, columnId);
 
+        await BroadcastAsync(
+            BuildProjectGroupName(projectId),
+            "ColumnDeleted",
+            new ColumnDeletedEventDto
+            {
+                ColumnId = columnId.ToString(),
+                ProjectId = projectId.ToString()
+            });
+
         return true;
+    }
+
+    private static string BuildProjectGroupName(Guid projectId) =>
+        $"project_{projectId.ToString().ToLowerInvariant()}";
+
+    private async Task BroadcastAsync(string groupName, string eventName, object payload)
+    {
+        try
+        {
+            await _hubContext.Clients.Group(groupName).SendAsync(eventName, payload);
+            _logger.LogInformation(
+                "Broadcast {EventName} event to group {GroupName}",
+                eventName, groupName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to broadcast {EventName} event to group {GroupName}",
+                eventName, groupName);
+        }
     }
 
     private async Task<int> ComputeNextColumnOrderAsync(Guid projectId)

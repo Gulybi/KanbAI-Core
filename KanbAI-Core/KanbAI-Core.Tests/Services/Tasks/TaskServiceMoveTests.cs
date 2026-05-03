@@ -1,9 +1,11 @@
 using FluentAssertions;
 using KanbAI_Core.Data;
 using KanbAI_Core.DTOs;
+using KanbAI_Core.Hubs;
 using KanbAI_Core.Models.Entities;
 using KanbAI_Core.Models.Enums;
 using KanbAI_Core.Services.Tasks;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -13,10 +15,24 @@ namespace KanbAI_Core.Tests.Services.Tasks;
 public class TaskServiceMoveTests
 {
     private readonly Mock<ILogger<TaskService>> _loggerMock;
+    private readonly Mock<IHubContext<KanbanHub>> _hubContextMock;
 
     public TaskServiceMoveTests()
     {
         _loggerMock = new Mock<ILogger<TaskService>>();
+        _hubContextMock = CreateHubContextMock();
+    }
+
+    private static Mock<IHubContext<KanbanHub>> CreateHubContextMock()
+    {
+        var clientProxy = new Mock<IClientProxy>();
+        var clients = new Mock<IHubClients>();
+        clients.Setup(c => c.Group(It.IsAny<string>())).Returns(clientProxy.Object);
+        clients.Setup(c => c.All).Returns(clientProxy.Object);
+
+        var hubContext = new Mock<IHubContext<KanbanHub>>();
+        hubContext.Setup(h => h.Clients).Returns(clients.Object);
+        return hubContext;
     }
 
     #region Cross-Column Moves
@@ -26,7 +42,7 @@ public class TaskServiceMoveTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new TaskService(context, _loggerMock.Object);
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var (projectId, sourceColumnId, targetColumnId) = await SeedProjectWithTwoColumnsAsync(context, userId);
 
@@ -60,7 +76,7 @@ public class TaskServiceMoveTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new TaskService(context, _loggerMock.Object);
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var (projectId, sourceColumnId, targetColumnId) = await SeedProjectWithTwoColumnsAsync(context, userId);
 
@@ -98,7 +114,7 @@ public class TaskServiceMoveTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new TaskService(context, _loggerMock.Object);
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var (projectId, sourceColumnId, targetColumnId) = await SeedProjectWithTwoColumnsAsync(context, userId);
 
@@ -135,7 +151,7 @@ public class TaskServiceMoveTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new TaskService(context, _loggerMock.Object);
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var (projectId, sourceColumnId, targetColumnId) = await SeedProjectWithTwoColumnsAsync(context, userId);
 
@@ -176,7 +192,7 @@ public class TaskServiceMoveTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new TaskService(context, _loggerMock.Object);
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var (projectId, columnId, _) = await SeedProjectWithTwoColumnsAsync(context, userId);
 
@@ -215,7 +231,7 @@ public class TaskServiceMoveTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new TaskService(context, _loggerMock.Object);
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var (projectId, columnId, _) = await SeedProjectWithTwoColumnsAsync(context, userId);
 
@@ -252,7 +268,7 @@ public class TaskServiceMoveTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new TaskService(context, _loggerMock.Object);
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var (projectId, columnId, _) = await SeedProjectWithTwoColumnsAsync(context, userId);
 
@@ -292,7 +308,7 @@ public class TaskServiceMoveTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new TaskService(context, _loggerMock.Object);
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var (projectId, columnId, _) = await SeedProjectWithTwoColumnsAsync(context, userId);
 
@@ -311,7 +327,7 @@ public class TaskServiceMoveTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new TaskService(context, _loggerMock.Object);
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
         var memberId = Guid.NewGuid();
         var outsiderId = Guid.NewGuid();
         var (projectId, columnId, _) = await SeedProjectWithTwoColumnsAsync(context, memberId);
@@ -341,7 +357,7 @@ public class TaskServiceMoveTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new TaskService(context, _loggerMock.Object);
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var (projectId, columnId, _) = await SeedProjectWithTwoColumnsAsync(context, userId);
 
@@ -370,7 +386,7 @@ public class TaskServiceMoveTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new TaskService(context, _loggerMock.Object);
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var (projectAId, sourceColumnId, _) = await SeedProjectWithTwoColumnsAsync(context, userId);
         var targetColumnInProjectB = await SeedSecondProjectWithColumnAsync(context, userId);
@@ -404,7 +420,7 @@ public class TaskServiceMoveTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new TaskService(context, _loggerMock.Object);
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var (projectId, columnId, _) = await SeedProjectWithTwoColumnsAsync(context, userId);
 
@@ -433,7 +449,7 @@ public class TaskServiceMoveTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new TaskService(context, _loggerMock.Object);
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var (projectId, sourceColumnId, targetColumnId) = await SeedProjectWithTwoColumnsAsync(context, userId);
 
@@ -460,7 +476,7 @@ public class TaskServiceMoveTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new TaskService(context, _loggerMock.Object);
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var (projectId, columnId, _) = await SeedProjectWithTwoColumnsAsync(context, userId);
 
@@ -491,7 +507,7 @@ public class TaskServiceMoveTests
     {
         // Arrange
         var context = CreateInMemoryContext();
-        var service = new TaskService(context, _loggerMock.Object);
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
         var userId = Guid.NewGuid();
         var (projectId, sourceColumnId, targetColumnId) = await SeedProjectWithTwoColumnsAsync(context, userId);
 
