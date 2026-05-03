@@ -2,8 +2,10 @@ namespace KanbAI_Core.Services.Projects;
 
 using KanbAI_Core.Data;
 using KanbAI_Core.DTOs;
+using KanbAI_Core.Hubs;
 using KanbAI_Core.Models.Entities;
 using KanbAI_Core.Models.Enums;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -11,11 +13,16 @@ public sealed class ProjectService : IProjectService
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<ProjectService> _logger;
+    private readonly IHubContext<KanbanHub> _hubContext;
 
-    public ProjectService(ApplicationDbContext context, ILogger<ProjectService> logger)
+    public ProjectService(
+        ApplicationDbContext context,
+        ILogger<ProjectService> logger,
+        IHubContext<KanbanHub> hubContext)
     {
         _context = context;
         _logger = logger;
+        _hubContext = hubContext;
     }
 
     public async Task<ProjectResponseDto> CreateProjectAsync(CreateProjectDto dto, Guid userId)
@@ -115,7 +122,20 @@ public sealed class ProjectService : IProjectService
 
         _logger.LogInformation("User {UserId} updated project {ProjectId}", userId, projectId);
 
-        return MapToDto(project, member.Role);
+        var payload = MapToDto(project, member.Role);
+
+        await BroadcastAsync(
+            BuildProjectGroupName(projectId),
+            "ProjectUpdated",
+            new ProjectUpdatedEventDto
+            {
+                ProjectId = projectId.ToString(),
+                Name = project.Name,
+                Description = project.Description,
+                UpdatedAt = project.UpdatedAt
+            });
+
+        return payload;
     }
 
     public async Task<(bool isDeleted, string? errorMessage)> DeleteProjectAsync(Guid projectId, Guid userId)
@@ -149,6 +169,11 @@ public sealed class ProjectService : IProjectService
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("User {UserId} deleted project {ProjectId}", userId, projectId);
+
+        await BroadcastAsync(
+            BuildProjectGroupName(projectId),
+            "ProjectDeleted",
+            new ProjectDeletedEventDto { ProjectId = projectId.ToString() });
 
         return (true, null);
     }
@@ -214,7 +239,14 @@ public sealed class ProjectService : IProjectService
         _logger.LogInformation("User {RequestingUserId} added user {UserId} as Member to project {ProjectId}",
             requestingUserId, userIdToAdd, projectId);
 
-        return (MapToMemberDto(newMember, userToAdd), null);
+        var payload = MapToMemberDto(newMember, userToAdd);
+
+        await BroadcastAsync(
+            BuildProjectGroupName(projectId),
+            "MemberAdded",
+            payload);
+
+        return (payload, null);
     }
 
     public async Task<(bool isRemoved, string? errorMessage)> RemoveMemberAsync(
@@ -271,6 +303,15 @@ public sealed class ProjectService : IProjectService
 
         _logger.LogInformation("User {RequestingUserId} removed user {UserId} from project {ProjectId}",
             requestingUserId, userIdToRemove, projectId);
+
+        await BroadcastAsync(
+            BuildProjectGroupName(projectId),
+            "MemberRemoved",
+            new MemberRemovedEventDto
+            {
+                UserId = userIdToRemove.ToString(),
+                ProjectId = projectId.ToString()
+            });
 
         return (true, null);
     }
@@ -357,6 +398,27 @@ public sealed class ProjectService : IProjectService
 
         _logger.LogInformation("Resolved email {Email} to user {UserId}", trimmedEmail, user.Id);
         return (user.Id, null);
+    }
+
+    private static string BuildProjectGroupName(Guid projectId) =>
+        $"project_{projectId.ToString().ToLowerInvariant()}";
+
+    private async Task BroadcastAsync(string groupName, string eventName, object payload)
+    {
+        try
+        {
+            await _hubContext.Clients.Group(groupName).SendAsync(eventName, payload);
+            _logger.LogInformation(
+                "Broadcast {EventName} event to group {GroupName}",
+                eventName, groupName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to broadcast {EventName} event to group {GroupName}",
+                eventName, groupName);
+        }
     }
 
     private static ProjectResponseDto MapToDto(Project project, ProjectRole userRole)

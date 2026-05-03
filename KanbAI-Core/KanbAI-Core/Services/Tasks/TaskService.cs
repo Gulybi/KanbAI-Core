@@ -2,7 +2,9 @@ namespace KanbAI_Core.Services.Tasks;
 
 using KanbAI_Core.Data;
 using KanbAI_Core.DTOs;
+using KanbAI_Core.Hubs;
 using KanbAI_Core.Models.Entities;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -10,11 +12,16 @@ public sealed class TaskService : ITaskService
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<TaskService> _logger;
+    private readonly IHubContext<KanbanHub> _hubContext;
 
-    public TaskService(ApplicationDbContext context, ILogger<TaskService> logger)
+    public TaskService(
+        ApplicationDbContext context,
+        ILogger<TaskService> logger,
+        IHubContext<KanbanHub> hubContext)
     {
         _context = context;
         _logger = logger;
+        _hubContext = hubContext;
     }
 
     public async Task<(TaskResponseDto? data, CreateTaskResult result)> CreateTaskAsync(
@@ -93,7 +100,13 @@ public sealed class TaskService : ITaskService
             "User {UserId} created task {TaskId} in column {ColumnId} at order {TaskOrder}",
             userId, task.Id, columnId, task.TaskOrder);
 
-        return (MapToDto(task), CreateTaskResult.Success);
+        var payload = MapToDto(task);
+        await BroadcastAsync(
+            BuildProjectGroupName(column.ProjectId),
+            "TaskCreated",
+            payload);
+
+        return (payload, CreateTaskResult.Success);
     }
 
     public async Task<(TaskResponseDto? data, MoveTaskResult result)> MoveTaskAsync(
@@ -128,6 +141,10 @@ public sealed class TaskService : ITaskService
         }
 
         var isSameColumn = dto.ColumnId == task.ColumnId;
+
+        var originalColumnId = task.ColumnId;
+        var originalTaskOrder = task.TaskOrder;
+        var projectId = task.Column.ProjectId;
 
         if (!isSameColumn)
         {
@@ -252,7 +269,43 @@ public sealed class TaskService : ITaskService
             "User {UserId} moved task {TaskId} to column {ColumnId} at order {TaskOrder}",
             userId, taskId, task.ColumnId, task.TaskOrder);
 
-        return (MapToDto(task), MoveTaskResult.Success);
+        var payload = MapToDto(task);
+        var eventPayload = new TaskMovedEventDto
+        {
+            TaskId = task.Id.ToString(),
+            OldColumnId = originalColumnId.ToString(),
+            NewColumnId = task.ColumnId.ToString(),
+            OldTaskOrder = originalTaskOrder,
+            NewTaskOrder = task.TaskOrder,
+            Task = payload
+        };
+        await BroadcastAsync(
+            BuildProjectGroupName(projectId),
+            "TaskMoved",
+            eventPayload);
+
+        return (payload, MoveTaskResult.Success);
+    }
+
+    private static string BuildProjectGroupName(Guid projectId) =>
+        $"project_{projectId.ToString().ToLowerInvariant()}";
+
+    private async Task BroadcastAsync(string groupName, string eventName, object payload)
+    {
+        try
+        {
+            await _hubContext.Clients.Group(groupName).SendAsync(eventName, payload);
+            _logger.LogInformation(
+                "Broadcast {EventName} event to group {GroupName}",
+                eventName, groupName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to broadcast {EventName} event to group {GroupName}",
+                eventName, groupName);
+        }
     }
 
     private static TaskResponseDto MapToDto(KanbanTask task) =>
