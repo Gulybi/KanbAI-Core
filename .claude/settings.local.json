@@ -22,7 +22,9 @@
       "Bash(timeout 3 cat)",
       "Bash(sleep 5 && cat /c/Users/dgulyban/AppData/Local/Temp/claude/c--temp-KanbAI-Core/674ff24a-801c-4e41-98e1-b206972295db/tasks/bfl0qy1ul.output 2>&1 | head -50)",
       "Read(//c/Users/dgulyban/AppData/Local/Temp/claude/c--temp-KanbAI-Core/674ff24a-801c-4e41-98e1-b206972295db/tasks/**)",
-      "Bash(taskkill //F //IM KanbAI-Core.exe)"
+      "Bash(taskkill //F //IM KanbAI-Core.exe)",
+      "Bash(cat)",
+      "Read(//tmp/**)"
     ],
     "additionalDirectories": [
       "C:\\temp\\KanbAI-Core\\.claude",
