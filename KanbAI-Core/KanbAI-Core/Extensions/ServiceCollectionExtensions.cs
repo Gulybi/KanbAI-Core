@@ -59,7 +59,7 @@ public static class ServiceCollectionExtensions
             {
                 policy.WithOrigins(allowedOrigins)
                       .WithMethods("GET", "POST", "PUT", "DELETE", "PATCH")
-                      .WithHeaders("Content-Type", "Authorization")
+                      .AllowAnyHeader()
                       .AllowCredentials();
             });
         });
