@@ -70,7 +70,7 @@ Factories in code: `ApiResponse.Ok(...)`, `ApiResponse<T>.Ok(data, ...)`, `ApiRe
 
 **Add member:** `403` — only owner; `400` — user not found (`"User not found."` or `"No user found with email address: {email}"` — match by prefix), already member (`"User is already a member of this project."`), or missing input (`"Either UserId or Email is required."` / `"Provide either UserId or Email, not both."`); `404` — project not found.
 
-**Remove member:** `403` — only owner (`"Only the project owner can remove members."`); `400` — cannot remove last owner (`"Cannot remove the last owner from the project."`); `404` — not found (treated as success by the frontend: already gone server-side).
+**Remove member:** `403` — only owner (`"Only the project owner can remove members."`); `400` — cannot remove last owner (`"Cannot remove the last owner from the project."`) or target is not a member (`"User is not a member of this project."`); `404` — project not found (frontend treats this as success: already gone server-side).
 
 ---
 
@@ -94,6 +94,30 @@ Factories in code: `ApiResponse.Ok(...)`, `ApiResponse<T>.Ok(data, ...)`, `ApiRe
 **Create task** failures (examples): `404` column not found; `403` not a project member; `400` missing title, assignee not found, or assignee not a member.
 
 **Move task** failures (examples): `404` task or target column; `403` not a member; `400` cross-project move or invalid `taskOrder`.
+
+---
+
+### Attachments
+
+Attachments are uploaded against a `KanbanTask` and stored as `Asset` records. Processing is asynchronous: the HTTP response returns as soon as the DB row is committed (status `Pending`), and subsequent status transitions are pushed over SignalR (see [Server-sent events](#server-sent-events-server--client)).
+
+| Method | Route | Auth | Request body | Success response |
+|--------|-------|------|--------------|-------------------|
+| `POST` | `/api/attachment/task/{taskId}` | JWT | `multipart/form-data` with single `file` field (`IFormFile`) | `201` — `ApiResponse<AssetResponseDto>` |
+| `GET` | `/api/attachment/{assetId}` | JWT | — | `200` — raw file stream with `Content-Type` set from stored MIME type, `Content-Disposition: inline` for images, `attachment` otherwise |
+
+**Upload constraints**
+
+| Constraint | Value |
+|------------|-------|
+| Max file size | 10 MB (10,485,760 bytes) |
+| Allowed extensions | `.jpg`, `.jpeg`, `.png`, `.gif`, `.pdf`, `.docx`, `.xlsx`, `.txt` |
+| MIME type validation | Enforced per-extension whitelist |
+| Filename sanitization | Path traversal and unsafe characters rejected |
+
+**Upload failures**: `400` — `"File is required."`, `"File cannot be empty."`, `"File name is invalid."`, `"File type is not allowed."`; `403` — `"You are not a member of this project."`; `404` — `"Task not found."`; `413` — `"File size exceeds maximum allowed size."`; `500` — `"Failed to save file. Please try again."`.
+
+**Download failures**: `400` — `"File is still being processed."` (asset still `Pending`/`Processing`), `"File upload failed."` (asset is `Failed`); `403` — `"You are not authorized to access this file."` (caller is not a member of the owning project); `404` — `"File not found."`.
 
 ---
 
@@ -124,8 +148,14 @@ All events are broadcast to the group `project_{projectId lowercase}`. Payloads 
 | `ColumnDeleted` | `DELETE /api/column/{id}` | `ColumnDeletedEventDto` |
 | `TaskCreated` | `POST /api/task/column/{columnId}` | `TaskResponseDto` |
 | `TaskMoved` | `PUT /api/task/{taskId}/move` | `TaskMovedEventDto` |
+| `AssetUploadStarted` | `POST /api/attachment/task/{taskId}` | `AssetStatusEventDto` (status `Pending`) |
+| `AssetProcessing` | `POST /api/attachment/task/{taskId}` | `AssetStatusEventDto` (status `Processing`) |
+| `AssetCompleted` | `POST /api/attachment/task/{taskId}` | `AssetResponseDto` (status `Completed`) |
+| `AssetFailed` | `POST /api/attachment/task/{taskId}` | `AssetFailedEventDto` |
 
 Broadcasts happen after the EF Core `SaveChangesAsync` succeeds. Broadcast failures are logged but do not fail the originating HTTP request — the mutation is the source of truth, the broadcast is best-effort notification.
+
+**Asset lifecycle:** The four asset events fire in sequence on a single upload — `AssetUploadStarted` (row inserted as `Pending`), `AssetProcessing` (status flipped before the file write), then either `AssetCompleted` (file written successfully, full `AssetResponseDto` with final storage keys) or `AssetFailed` (file write failed, DB row rolled back). Clients should reconcile by `assetId`.
 
 > ⚠️ **Not yet broadcast:** `ProjectCreated` (no group exists at creation time), and no task-update/task-delete events exist yet because those endpoints are not implemented. Clients relying on `GET /api/project` after page load will still reflect new projects.
 
@@ -262,6 +292,23 @@ The frontend Members UI (issue #33) sends `{ email }` only.
 | `columnId` | `string` (GUID) | Required — target column |
 | `taskOrder` | `number` | Required, ≥ 0 |
 
+### `AssetResponseDto`
+
+Returned by `POST /api/attachment/task/{taskId}` and as the payload of the `AssetCompleted` SignalR event.
+
+| JSON property | Type | Notes |
+|---------------|------|--------|
+| `id` | `string` (GUID) | Asset id |
+| `fileName` | `string` | Original filename (sanitized) |
+| `storageKey` | `string` | Server-side storage key (`{guid}_{sanitizedName}`) — used internally; clients should prefer `GET /api/attachment/{assetId}` |
+| `thumbnailKey` | `string \| null` | Reserved for future thumbnail generation |
+| `mimeType` | `string` | Resolved MIME type (server-determined, not from client header) |
+| `fileSize` | `number` | Bytes |
+| `processingStatus` | `number` | `ProcessingStatus` enum: `0=Pending`, `1=Processing`, `2=Completed`, `3=Failed` |
+| `kanbanTaskId` | `string` (GUID) | Owning task |
+| `createdAt` | `string` (ISO 8601) | |
+| `updatedAt` | `string` (ISO 8601) | |
+
 ### SignalR event DTOs
 
 **`ProjectUpdatedEventDto`**
@@ -304,7 +351,24 @@ The frontend Members UI (issue #33) sends `{ email }` only.
 | `newTaskOrder` | `number` | New order index |
 | `task` | `TaskResponseDto` | Full post-move task state |
 
-The `MemberAdded`, `ColumnCreated`, and `TaskCreated` events send the corresponding response DTO (`MemberResponseDto`, `ColumnResponseDto`, `TaskResponseDto`) directly as the payload — no event-specific wrapper.
+**`AssetStatusEventDto`** — payload of `AssetUploadStarted` and `AssetProcessing`
+
+| JSON property | Type | Notes |
+|---------------|------|--------|
+| `assetId` | `string` (GUID) | |
+| `taskId` | `string` (GUID) | |
+| `fileName` | `string` | |
+| `processingStatus` | `number` | `ProcessingStatus` enum — `0=Pending` on `AssetUploadStarted`, `1=Processing` on `AssetProcessing` |
+
+**`AssetFailedEventDto`** — payload of `AssetFailed`
+
+| JSON property | Type | Notes |
+|---------------|------|--------|
+| `assetId` | `string` (GUID) | |
+| `taskId` | `string` (GUID) | |
+| `errorMessage` | `string` | Human-readable reason (e.g., storage error) |
+
+The `MemberAdded`, `ColumnCreated`, `TaskCreated`, and `AssetCompleted` events send the corresponding response DTO (`MemberResponseDto`, `ColumnResponseDto`, `TaskResponseDto`, `AssetResponseDto`) directly as the payload — no event-specific wrapper.
 
 ---
 
