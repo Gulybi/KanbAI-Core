@@ -1,6 +1,8 @@
 using KanbAI_Core.Data;
 using KanbAI_Core.Middleware;
+using KanbAI_Core.Models.Configuration;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace KanbAI_Core.Extensions;
 
@@ -71,6 +73,26 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddSignalRInfrastructure(this IServiceCollection services)
     {
         services.AddSignalR();
+        return services;
+    }
+
+    /// <summary>
+    /// Registers file storage configuration and validation.
+    /// Binds the "FileStorage" section from appsettings.json to <see cref="FileStorageOptions"/>
+    /// and validates the configuration at startup (fail-fast if invalid).
+    /// </summary>
+    public static IServiceCollection AddFileStorage(
+        this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<FileStorageOptions>()
+            .Bind(configuration.GetSection(FileStorageOptions.SectionName))
+            .Validate(options =>
+            {
+                var validator = new FileStorageOptionsValidator();
+                var result = validator.Validate(null, options);
+                return result.Succeeded;
+            }, "FileStorage configuration is invalid. See validator for details.")
+            .ValidateOnStart();
         return services;
     }
 }

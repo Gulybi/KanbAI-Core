@@ -65,7 +65,8 @@ builder.Services
     .AddApiInfrastructure()
     .AddAuthServices()
     .AddCorsPolicy(builder.Configuration)
-    .AddSignalRInfrastructure();
+    .AddSignalRInfrastructure()
+    .AddFileStorage(builder.Configuration);
 
 var app = builder.Build();
 
