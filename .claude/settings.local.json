@@ -25,7 +25,8 @@
       "Bash(taskkill //F //IM KanbAI-Core.exe)",
       "Bash(cat)",
       "Read(//tmp/**)",
-      "Bash(cat > *)"
+      "Bash(cat > *)",
+      "Bash(claude agent -p 'Explore the codebase to answer: *)"
     ],
     "additionalDirectories": [
       "C:\\temp\\KanbAI-Core\\.claude",
