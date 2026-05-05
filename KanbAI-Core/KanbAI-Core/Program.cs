@@ -1,6 +1,7 @@
 using KanbAI_Core.Extensions;
 using System.Text;
 using KanbAI_Core.Models.Entities;
+using KanbAI_Core.Services.Assets;
 using KanbAI_Core.Services.Auth;
 using KanbAI_Core.Services.Columns;
 using KanbAI_Core.Services.Projects;
@@ -19,6 +20,7 @@ builder.Services.AddTransient<ITokenService, TokenService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IColumnService, ColumnService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
+builder.Services.AddScoped<IAssetService, AssetService>();
 builder.Services.AddSignalR();
 
 builder.Services
