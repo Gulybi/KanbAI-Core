@@ -13,10 +13,20 @@
       "Bash(dotnet restore *)",
       "Bash(grep -E \"\\\\.cs$\")",
       "Bash(grep -v \"^bin$\")",
-      "Bash(grep -v \"^obj$\")"
+      "Bash(grep -v \"^obj$\")",
+      "Bash(xargs cat)",
+      "Bash(cd /c/temp/KanbAI-Core/KanbAI-Core/KanbAI-Core && cp appsettings.Development.json appsettings.Development.json.backup)",
+      "Bash(timeout 10 dotnet run --no-build)",
+      "Bash(timeout 5 dotnet run --no-build)",
+      "Bash(dotnet run *)",
+      "Bash(timeout 3 cat)",
+      "Bash(sleep 5 && cat /c/Users/dgulyban/AppData/Local/Temp/claude/c--temp-KanbAI-Core/674ff24a-801c-4e41-98e1-b206972295db/tasks/bfl0qy1ul.output 2>&1 | head -50)",
+      "Read(//c/Users/dgulyban/AppData/Local/Temp/claude/c--temp-KanbAI-Core/674ff24a-801c-4e41-98e1-b206972295db/tasks/**)",
+      "Bash(taskkill //F //IM KanbAI-Core.exe)"
     ],
     "additionalDirectories": [
-      "C:\\temp\\KanbAI-Core\\.claude"
+      "C:\\temp\\KanbAI-Core\\.claude",
+      "c:\\c\\temp\\KanbAI-Core\\KanbAI-Core\\KanbAI-Core"
     ]
   }
 }
