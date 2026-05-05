@@ -24,11 +24,13 @@
       "Read(//c/Users/dgulyban/AppData/Local/Temp/claude/c--temp-KanbAI-Core/674ff24a-801c-4e41-98e1-b206972295db/tasks/**)",
       "Bash(taskkill //F //IM KanbAI-Core.exe)",
       "Bash(cat)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(cat > *)"
     ],
     "additionalDirectories": [
       "C:\\temp\\KanbAI-Core\\.claude",
-      "c:\\c\\temp\\KanbAI-Core\\KanbAI-Core\\KanbAI-Core"
+      "c:\\c\\temp\\KanbAI-Core\\KanbAI-Core\\KanbAI-Core",
+      "\\tmp"
     ]
   }
 }
