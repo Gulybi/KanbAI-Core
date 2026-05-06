@@ -104,6 +104,7 @@ Attachments are uploaded against a `KanbanTask` and stored as `Asset` records. P
 | Method | Route | Auth | Request body | Success response |
 |--------|-------|------|--------------|-------------------|
 | `POST` | `/api/attachment/task/{taskId}` | JWT | `multipart/form-data` with single `file` field (`IFormFile`) | `201` — `ApiResponse<AssetResponseDto>` |
+| `GET` | `/api/attachment/task/{taskId}` | JWT | — | `200` — `ApiResponse<IEnumerable<AssetResponseDto>>` |
 | `GET` | `/api/attachment/{assetId}` | JWT | — | `200` — raw file stream with `Content-Type` set from stored MIME type, `Content-Disposition: inline` for images, `attachment` otherwise |
 
 **Upload constraints**
@@ -117,7 +118,9 @@ Attachments are uploaded against a `KanbanTask` and stored as `Asset` records. P
 
 **Upload failures**: `400` — `"File is required."`, `"File cannot be empty."`, `"File name is invalid."`, `"File type is not allowed."`; `403` — `"You are not a member of this project."`; `404` — `"Task not found."`; `413` — `"File size exceeds maximum allowed size."`; `500` — `"Failed to save file. Please try again."`.
 
-**Download failures**: `400` — `"File is still being processed."` (asset still `Pending`/`Processing`), `"File upload failed."` (asset is `Failed`); `403` — `"You are not authorized to access this file."` (caller is not a member of the owning project); `404` — `"File not found."`.
+**List failures**: `403` — `"You are not authorized to access this task's attachments."` (caller is not a member of the owning project); `404` — `"Task not found."`. Only `Completed` assets are returned, ordered by `createdAt` descending; assets in `Pending`/`Processing`/`Failed` state are omitted.
+
+**Download failures**: `400` — `"File is still being processed."` (asset still `Pending`/`Processing`); `403` — `"You are not authorized to access this file."` (caller is not a member of the owning project); `404` — `"File not found."` (asset missing, physical file missing, or path escaped storage root) and `"File upload failed."` (asset is `Failed`).
 
 ---
 
