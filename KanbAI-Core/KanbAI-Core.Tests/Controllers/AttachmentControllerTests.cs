@@ -730,6 +730,261 @@ public class AttachmentControllerTests : IDisposable
 
     #endregion
 
+    #region ListAttachmentsForTask
+
+    [Fact]
+    public async Task ListAttachmentsForTask_TaskExistsWithCompletedAssets_Returns200WithOrderedDtos()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var task = await SeedTaskWithProject(userId);
+
+        // Seed assets with specific CreatedAt timestamps to test ordering.
+        // The SaveChangesAsync override will overwrite CreatedAt, so we set it after.
+        var baseTime = DateTimeOffset.UtcNow;
+        var asset1 = SeedAssetForTask(task.Id, ProcessingStatus.Completed, "first.png", baseTime.AddMinutes(-10));
+        var asset2 = SeedAssetForTask(task.Id, ProcessingStatus.Completed, "second.png", baseTime.AddMinutes(-5));
+        var asset3 = SeedAssetForTask(task.Id, ProcessingStatus.Completed, "third.png", baseTime);
+        await _context.SaveChangesAsync();
+
+        // Fix timestamps after save (SaveChangesAsync override sets them to UtcNow).
+        asset1.CreatedAt = baseTime.AddMinutes(-10);
+        asset2.CreatedAt = baseTime.AddMinutes(-5);
+        asset3.CreatedAt = baseTime;
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _controller.ListAttachmentsForTask(task.Id, CancellationToken.None);
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.StatusCode.Should().Be(200);
+
+        var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<IEnumerable<AssetResponseDto>>>().Subject;
+        apiResponse.Success.Should().BeTrue();
+        apiResponse.Message.Should().Be("Attachments retrieved successfully.");
+
+        var data = apiResponse.Data.Should().NotBeNull().And.Subject.ToList();
+        data.Should().HaveCount(3);
+        data[0].FileName.Should().Be("third.png");
+        data[1].FileName.Should().Be("second.png");
+        data[2].FileName.Should().Be("first.png");
+    }
+
+    [Fact]
+    public async Task ListAttachmentsForTask_TaskExistsWithNoAssets_Returns200WithEmptyList()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var task = await SeedTaskWithProject(userId);
+
+        // Act
+        var result = await _controller.ListAttachmentsForTask(task.Id, CancellationToken.None);
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.StatusCode.Should().Be(200);
+
+        var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<IEnumerable<AssetResponseDto>>>().Subject;
+        apiResponse.Success.Should().BeTrue();
+        apiResponse.Message.Should().Be("Attachments retrieved successfully.");
+        apiResponse.Data.Should().NotBeNull().And.BeEmpty();
+    }
+
+    [Fact]
+    public async Task ListAttachmentsForTask_TaskExistsWithMixedStatusAssets_ReturnsOnlyCompleted()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var task = await SeedTaskWithProject(userId);
+        var pending = SeedAssetForTask(task.Id, ProcessingStatus.Pending, "pending.png", DateTimeOffset.UtcNow);
+        var processing = SeedAssetForTask(task.Id, ProcessingStatus.Processing, "processing.png", DateTimeOffset.UtcNow);
+        var completed = SeedAssetForTask(task.Id, ProcessingStatus.Completed, "completed.png", DateTimeOffset.UtcNow);
+        var failed = SeedAssetForTask(task.Id, ProcessingStatus.Failed, "failed.png", DateTimeOffset.UtcNow);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _controller.ListAttachmentsForTask(task.Id, CancellationToken.None);
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<IEnumerable<AssetResponseDto>>>().Subject;
+
+        var data = apiResponse.Data.Should().NotBeNull().And.Subject.ToList();
+        data.Should().HaveCount(1);
+        data[0].Id.Should().Be(completed.Id.ToString());
+    }
+
+    [Fact]
+    public async Task ListAttachmentsForTask_TaskDoesNotExist_Returns404NotFound()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        // Act
+        var result = await _controller.ListAttachmentsForTask(Guid.NewGuid(), CancellationToken.None);
+
+        // Assert
+        var notFound = result.Should().BeOfType<NotFoundObjectResult>().Subject;
+        notFound.StatusCode.Should().Be(404);
+
+        var apiResponse = notFound.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("Task not found.");
+    }
+
+    [Fact]
+    public async Task ListAttachmentsForTask_UserNotProjectMember_Returns403Forbidden()
+    {
+        // Arrange
+        var ownerId = Guid.NewGuid();
+        var outsiderId = Guid.NewGuid();
+        SetupUserClaims(outsiderId);
+
+        var task = await SeedTaskWithProject(ownerId);
+        SeedAssetForTask(task.Id, ProcessingStatus.Completed, "restricted.png", DateTimeOffset.UtcNow);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _controller.ListAttachmentsForTask(task.Id, CancellationToken.None);
+
+        // Assert
+        var objectResult = result.Should().BeOfType<ObjectResult>().Subject;
+        objectResult.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+
+        var apiResponse = objectResult.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("You are not authorized to access this task's attachments.");
+    }
+
+    [Fact]
+    public async Task ListAttachmentsForTask_UserIsProjectMember_DoesNotLogAuthorizationFailure()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var task = await SeedTaskWithProject(userId);
+        SeedAssetForTask(task.Id, ProcessingStatus.Completed, "allowed.png", DateTimeOffset.UtcNow);
+        await _context.SaveChangesAsync();
+
+        // Act
+        await _controller.ListAttachmentsForTask(task.Id, CancellationToken.None);
+
+        // Assert
+        _loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ListAttachmentsForTask_MultipleTasksExist_ReturnsAssetsForRequestedTaskOnly()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var taskA = await SeedTaskWithProject(userId);
+        var taskB = await SeedTaskInSameProject(taskA, userId);
+
+        var assetA = SeedAssetForTask(taskA.Id, ProcessingStatus.Completed, "taskA.png", DateTimeOffset.UtcNow);
+        var assetB = SeedAssetForTask(taskB.Id, ProcessingStatus.Completed, "taskB.png", DateTimeOffset.UtcNow);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _controller.ListAttachmentsForTask(taskA.Id, CancellationToken.None);
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<IEnumerable<AssetResponseDto>>>().Subject;
+
+        var data = apiResponse.Data.Should().NotBeNull().And.Subject.ToList();
+        data.Should().HaveCount(1);
+        data[0].Id.Should().Be(assetA.Id.ToString());
+    }
+
+    [Fact]
+    public async Task ListAttachmentsForTask_AssetsFromOtherProjects_AreNotReturned()
+    {
+        // Arrange
+        var user1 = Guid.NewGuid();
+        var user2 = Guid.NewGuid();
+        SetupUserClaims(user1);
+
+        var taskInProject1 = await SeedTaskWithProject(user1);
+        var taskInProject2 = await SeedTaskWithProject(user2);
+
+        SeedAssetForTask(taskInProject2.Id, ProcessingStatus.Completed, "otherProject.png", DateTimeOffset.UtcNow);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _controller.ListAttachmentsForTask(taskInProject2.Id, CancellationToken.None);
+
+        // Assert
+        var objectResult = result.Should().BeOfType<ObjectResult>().Subject;
+        objectResult.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+    }
+
+    [Fact]
+    public async Task ListAttachmentsForTask_InvalidJwtClaim_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        _controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity())
+            }
+        };
+
+        // Act
+        Func<Task> act = () => _controller.ListAttachmentsForTask(Guid.NewGuid(), CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("Invalid or missing user ID in token.");
+    }
+
+    [Fact]
+    public async Task ListAttachmentsForTask_SuccessfulRetrieval_LogsInformationWithCount()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var task = await SeedTaskWithProject(userId);
+        SeedAssetForTask(task.Id, ProcessingStatus.Completed, "file1.png", DateTimeOffset.UtcNow);
+        SeedAssetForTask(task.Id, ProcessingStatus.Completed, "file2.png", DateTimeOffset.UtcNow);
+        await _context.SaveChangesAsync();
+
+        // Act
+        await _controller.ListAttachmentsForTask(task.Id, CancellationToken.None);
+
+        // Assert
+        _loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("retrieved") && v.ToString()!.Contains("2")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    #endregion
+
     #region Helpers
 
     private void SetupUserClaims(Guid userId)
@@ -804,6 +1059,69 @@ public class AttachmentControllerTests : IDisposable
         Directory.CreateDirectory(storageDir);
         var path = Path.Combine(storageDir, asset.StorageKey);
         File.WriteAllBytes(path, bytes);
+    }
+
+    /// <summary>
+    /// Seeds a complete Project → Member → Column → Task graph for ListAttachmentsForTask tests.
+    /// </summary>
+    private async Task<KanbanTask> SeedTaskWithProject(Guid userId)
+    {
+        var user = new User { Id = userId, Name = "testuser", Email = "test@example.com", PasswordHash = "h" };
+        var project = new Project { Name = "Test Project", Description = "Test" };
+        var member = new ProjectMember { Project = project, UserId = userId, Role = ProjectRole.Owner };
+        var column = new BoardColumn { Name = "To Do", Project = project, ColumnOrder = 0 };
+        var task = new KanbanTask { Title = "Test Task", Column = column, TaskOrder = 0 };
+
+        _context.Users.Add(user);
+        _context.Projects.Add(project);
+        _context.ProjectMembers.Add(member);
+        _context.BoardColumns.Add(column);
+        _context.KanbanTasks.Add(task);
+        await _context.SaveChangesAsync();
+
+        return task;
+    }
+
+    /// <summary>
+    /// Seeds a second task in the same project as the provided task.
+    /// </summary>
+    private async Task<KanbanTask> SeedTaskInSameProject(KanbanTask existingTask, Guid userId)
+    {
+        var column = await _context.BoardColumns
+            .Include(c => c.Project)
+            .FirstAsync(c => c.Id == existingTask.ColumnId);
+
+        var taskB = new KanbanTask { Title = "Second Task", Column = column, TaskOrder = 1 };
+        _context.KanbanTasks.Add(taskB);
+        await _context.SaveChangesAsync();
+
+        return taskB;
+    }
+
+    /// <summary>
+    /// Seeds an Asset entity attached to the specified task without creating the physical file.
+    /// </summary>
+    private Asset SeedAssetForTask(
+        Guid taskId,
+        ProcessingStatus status,
+        string fileName,
+        DateTimeOffset createdAt)
+    {
+        var asset = new Asset
+        {
+            Id = Guid.NewGuid(),
+            FileName = fileName,
+            StorageKey = $"{Guid.NewGuid():N}_{fileName}",
+            ThumbnailKey = null,
+            MimeType = "image/png",
+            FileSize = 1024,
+            ProcessingStatus = status,
+            KanbanTaskId = taskId,
+            CreatedAt = createdAt,
+            UpdatedAt = createdAt
+        };
+        _context.Assets.Add(asset);
+        return asset;
     }
 
     #endregion

@@ -99,6 +99,68 @@ public sealed class AttachmentController : ControllerBase
         };
     }
 
+    [HttpGet("task/{taskId}")]
+    public async Task<IActionResult> ListAttachmentsForTask(
+        Guid taskId,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+
+        // Single query: authorization chain + filtered assets.
+        // The filtered Include fetches only Completed assets in one roundtrip.
+        // Ordering is applied in-memory after materialization to ensure compatibility
+        // with both EF InMemory (tests) and SQL Server (production).
+        var task = await _context.KanbanTasks
+            .AsNoTracking()
+            .Include(t => t.Column)
+                .ThenInclude(c => c.Project)
+                    .ThenInclude(p => p.Members)
+            .Include(t => t.Assets.Where(a => a.ProcessingStatus == ProcessingStatus.Completed))
+            .FirstOrDefaultAsync(t => t.Id == taskId, cancellationToken);
+
+        if (task is null)
+        {
+            _logger.LogInformation(
+                "User {UserId} requested attachments for non-existent task {TaskId}",
+                userId, taskId);
+            return NotFound(ApiResponse.Fail("Task not found."));
+        }
+
+        var isMember = task.Column.Project.Members.Any(m => m.UserId == userId);
+        if (!isMember)
+        {
+            _logger.LogWarning(
+                "User {UserId} attempted to access attachments for task {TaskId} in project {ProjectId} without authorization",
+                userId, taskId, task.Column.ProjectId);
+            return StatusCode(StatusCodes.Status403Forbidden,
+                ApiResponse.Fail("You are not authorized to access this task's attachments."));
+        }
+
+        var data = task.Assets
+            .OrderByDescending(a => a.CreatedAt)
+            .Select(a => new AssetResponseDto
+            {
+                Id = a.Id.ToString(),
+                FileName = a.FileName,
+                StorageKey = a.StorageKey,
+                ThumbnailKey = a.ThumbnailKey,
+                MimeType = a.MimeType,
+                FileSize = a.FileSize,
+                ProcessingStatus = a.ProcessingStatus,
+                KanbanTaskId = a.KanbanTaskId.ToString(),
+                CreatedAt = a.CreatedAt,
+                UpdatedAt = a.UpdatedAt
+            })
+            .ToList();
+
+        _logger.LogInformation(
+            "User {UserId} retrieved {Count} attachments for task {TaskId}",
+            userId, data.Count, taskId);
+
+        return Ok(ApiResponse<IEnumerable<AssetResponseDto>>.Ok(
+            data, "Attachments retrieved successfully."));
+    }
+
     [HttpGet("{assetId}")]
     public async Task<IActionResult> GetFile(
         Guid assetId,
