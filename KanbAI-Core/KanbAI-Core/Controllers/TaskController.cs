@@ -77,25 +77,50 @@ public sealed class TaskController : ControllerBase
         };
     }
 
-    [HttpGet("project/{projectId}")]
-    public async Task<IActionResult> GetProjectTasks(
-        Guid projectId,
-        CancellationToken cancellationToken)
+    [HttpPut("{taskId}/description")]
+    public async Task<IActionResult> UpdateTaskDescription(Guid taskId, [FromBody] UpdateTaskDescriptionDto dto)
     {
         var userId = GetCurrentUserId();
 
-        var tasks = await _taskService.GetProjectTasksAsync(projectId, userId);
+        var (data, result) = await _taskService.UpdateTaskDescriptionAsync(taskId, dto, userId);
 
-        if (tasks == null)
+        return result switch
         {
-            return NotFound(ApiResponse.Fail("Project not found."));
-        }
+            UpdateTaskDescriptionResult.Success =>
+                Ok(ApiResponse<TaskResponseDto>.Ok(data!, "Task description updated successfully.")),
+            UpdateTaskDescriptionResult.TaskNotFound =>
+                NotFound(ApiResponse.Fail("Task not found.")),
+            UpdateTaskDescriptionResult.UserNotProjectMember =>
+                StatusCode(StatusCodes.Status403Forbidden,
+                    ApiResponse.Fail("You are not a member of this project.")),
+            UpdateTaskDescriptionResult.ContentEmpty =>
+                BadRequest(ApiResponse.Fail("Task description cannot be empty.")),
+            UpdateTaskDescriptionResult.ContentTooLong =>
+                BadRequest(ApiResponse.Fail("Task description cannot exceed 10,000 characters.")),
+            _ => StatusCode(StatusCodes.Status500InternalServerError,
+                     ApiResponse.Fail("Unexpected error."))
+        };
+    }
 
-        _logger.LogInformation(
-            "User {UserId} retrieved {Count} tasks for project {ProjectId}",
-            userId, tasks.Count, projectId);
+    [HttpDelete("{taskId}/description")]
+    public async Task<IActionResult> ClearTaskDescription(Guid taskId)
+    {
+        var userId = GetCurrentUserId();
 
-        return Ok(ApiResponse<List<TaskResponseDto>>.Ok(tasks, "Tasks retrieved successfully."));
+        var (data, result) = await _taskService.ClearTaskDescriptionAsync(taskId, userId);
+
+        return result switch
+        {
+            ClearTaskDescriptionResult.Success =>
+                NoContent(),
+            ClearTaskDescriptionResult.TaskNotFound =>
+                NotFound(ApiResponse.Fail("Task not found.")),
+            ClearTaskDescriptionResult.UserNotProjectMember =>
+                StatusCode(StatusCodes.Status403Forbidden,
+                    ApiResponse.Fail("You are not a member of this project.")),
+            _ => StatusCode(StatusCodes.Status500InternalServerError,
+                     ApiResponse.Fail("Unexpected error."))
+        };
     }
 
     private Guid GetCurrentUserId()

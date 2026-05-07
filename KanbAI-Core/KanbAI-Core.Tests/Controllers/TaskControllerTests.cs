@@ -518,117 +518,62 @@ public class TaskControllerTests
 
     #endregion
 
-    #region GetProjectTasks
+    #region UpdateTaskDescription HTTP Mapping Tests
 
     [Fact]
-    public async Task GetProjectTasks_ProjectExistsWithTasks_Returns200WithOrderedDtos()
+    public async Task UpdateTaskDescription_ServiceReturnsSuccess_Returns200OK()
     {
         // Arrange
         var userId = Guid.NewGuid();
-        var projectId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
         SetupUserClaims(userId);
 
-        var columnAId = Guid.NewGuid();
-        var columnBId = Guid.NewGuid();
-
-        var tasks = new List<TaskResponseDto>
+        var dto = new UpdateTaskDescriptionDto { Content = "New description" };
+        var responseDto = new TaskResponseDto
         {
-            new()
-            {
-                Id = Guid.NewGuid().ToString(),
-                Title = "Task A0",
-                Content = null,
-                TaskOrder = 0,
-                ColumnId = columnAId.ToString(),
-                AssignedId = null,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
-            },
-            new()
-            {
-                Id = Guid.NewGuid().ToString(),
-                Title = "Task A1",
-                Content = null,
-                TaskOrder = 1,
-                ColumnId = columnAId.ToString(),
-                AssignedId = null,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
-            },
-            new()
-            {
-                Id = Guid.NewGuid().ToString(),
-                Title = "Task B0",
-                Content = "Description",
-                TaskOrder = 0,
-                ColumnId = columnBId.ToString(),
-                AssignedId = null,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
-            }
+            Id = taskId.ToString(),
+            Title = "Task",
+            Content = "New description",
+            TaskOrder = 0,
+            ColumnId = Guid.NewGuid().ToString(),
+            AssignedId = null,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
         };
 
         _taskServiceMock
-            .Setup(s => s.GetProjectTasksAsync(projectId, userId))
-            .ReturnsAsync(tasks);
+            .Setup(s => s.UpdateTaskDescriptionAsync(taskId, dto, userId))
+            .ReturnsAsync((responseDto, UpdateTaskDescriptionResult.Success));
 
         // Act
-        var result = await _controller.GetProjectTasks(projectId, CancellationToken.None);
+        var result = await _controller.UpdateTaskDescription(taskId, dto);
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.StatusCode.Should().Be(200);
 
-        var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<List<TaskResponseDto>>>().Subject;
+        var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<TaskResponseDto>>().Subject;
         apiResponse.Success.Should().BeTrue();
-        apiResponse.Message.Should().Be("Tasks retrieved successfully.");
-        apiResponse.Data.Should().NotBeNull();
-        apiResponse.Data.Should().HaveCount(3);
-        apiResponse.Data.Should().BeEquivalentTo(tasks, opts => opts.WithStrictOrdering());
+        apiResponse.Message.Should().Be("Task description updated successfully.");
+        apiResponse.Data.Should().BeEquivalentTo(responseDto);
     }
 
     [Fact]
-    public async Task GetProjectTasks_ProjectExistsWithNoTasks_Returns200WithEmptyList()
+    public async Task UpdateTaskDescription_ServiceReturnsTaskNotFound_Returns404()
     {
         // Arrange
         var userId = Guid.NewGuid();
-        var projectId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
         SetupUserClaims(userId);
 
-        var emptyList = new List<TaskResponseDto>();
+        var dto = new UpdateTaskDescriptionDto { Content = "Description" };
 
         _taskServiceMock
-            .Setup(s => s.GetProjectTasksAsync(projectId, userId))
-            .ReturnsAsync(emptyList);
+            .Setup(s => s.UpdateTaskDescriptionAsync(taskId, dto, userId))
+            .ReturnsAsync((null, UpdateTaskDescriptionResult.TaskNotFound));
 
         // Act
-        var result = await _controller.GetProjectTasks(projectId, CancellationToken.None);
-
-        // Assert
-        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        okResult.StatusCode.Should().Be(200);
-
-        var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<List<TaskResponseDto>>>().Subject;
-        apiResponse.Success.Should().BeTrue();
-        apiResponse.Message.Should().Be("Tasks retrieved successfully.");
-        apiResponse.Data.Should().NotBeNull();
-        apiResponse.Data.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task GetProjectTasks_ProjectDoesNotExist_Returns404NotFound()
-    {
-        // Arrange
-        var userId = Guid.NewGuid();
-        var projectId = Guid.NewGuid();
-        SetupUserClaims(userId);
-
-        _taskServiceMock
-            .Setup(s => s.GetProjectTasksAsync(projectId, userId))
-            .ReturnsAsync((List<TaskResponseDto>?)null);
-
-        // Act
-        var result = await _controller.GetProjectTasks(projectId, CancellationToken.None);
+        var result = await _controller.UpdateTaskDescription(taskId, dto);
 
         // Assert
         var notFound = result.Should().BeOfType<NotFoundObjectResult>().Subject;
@@ -636,23 +581,137 @@ public class TaskControllerTests
 
         var apiResponse = notFound.Value.Should().BeOfType<ApiResponse>().Subject;
         apiResponse.Success.Should().BeFalse();
-        apiResponse.Message.Should().Be("Project not found.");
+        apiResponse.Message.Should().Be("Task not found.");
     }
 
     [Fact]
-    public async Task GetProjectTasks_UserNotProjectMember_Returns404NotFound()
+    public async Task UpdateTaskDescription_ServiceReturnsUserNotProjectMember_Returns403()
     {
         // Arrange
         var userId = Guid.NewGuid();
-        var projectId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var dto = new UpdateTaskDescriptionDto { Content = "Description" };
+
+        _taskServiceMock
+            .Setup(s => s.UpdateTaskDescriptionAsync(taskId, dto, userId))
+            .ReturnsAsync((null, UpdateTaskDescriptionResult.UserNotProjectMember));
+
+        // Act
+        var result = await _controller.UpdateTaskDescription(taskId, dto);
+
+        // Assert
+        var objectResult = result.Should().BeOfType<ObjectResult>().Subject;
+        objectResult.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+
+        var apiResponse = objectResult.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("You are not a member of this project.");
+    }
+
+    [Fact]
+    public async Task UpdateTaskDescription_ServiceReturnsContentEmpty_Returns400()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var dto = new UpdateTaskDescriptionDto { Content = "   " };
+
+        _taskServiceMock
+            .Setup(s => s.UpdateTaskDescriptionAsync(taskId, dto, userId))
+            .ReturnsAsync((null, UpdateTaskDescriptionResult.ContentEmpty));
+
+        // Act
+        var result = await _controller.UpdateTaskDescription(taskId, dto);
+
+        // Assert
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequest.StatusCode.Should().Be(400);
+
+        var apiResponse = badRequest.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("Task description cannot be empty.");
+    }
+
+    [Fact]
+    public async Task UpdateTaskDescription_ServiceReturnsContentTooLong_Returns400()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var dto = new UpdateTaskDescriptionDto { Content = new string('A', 10_001) };
+
+        _taskServiceMock
+            .Setup(s => s.UpdateTaskDescriptionAsync(taskId, dto, userId))
+            .ReturnsAsync((null, UpdateTaskDescriptionResult.ContentTooLong));
+
+        // Act
+        var result = await _controller.UpdateTaskDescription(taskId, dto);
+
+        // Assert
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequest.StatusCode.Should().Be(400);
+
+        var apiResponse = badRequest.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("Task description cannot exceed 10,000 characters.");
+    }
+
+    #endregion
+
+    #region ClearTaskDescription HTTP Mapping Tests
+
+    [Fact]
+    public async Task ClearTaskDescription_ServiceReturnsSuccess_Returns204NoContent()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var responseDto = new TaskResponseDto
+        {
+            Id = taskId.ToString(),
+            Title = "Task",
+            Content = null,
+            TaskOrder = 0,
+            ColumnId = Guid.NewGuid().ToString(),
+            AssignedId = null,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+
+        _taskServiceMock
+            .Setup(s => s.ClearTaskDescriptionAsync(taskId, userId))
+            .ReturnsAsync((responseDto, ClearTaskDescriptionResult.Success));
+
+        // Act
+        var result = await _controller.ClearTaskDescription(taskId);
+
+        // Assert
+        var noContentResult = result.Should().BeOfType<NoContentResult>().Subject;
+        noContentResult.StatusCode.Should().Be(204);
+    }
+
+    [Fact]
+    public async Task ClearTaskDescription_ServiceReturnsTaskNotFound_Returns404()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
         SetupUserClaims(userId);
 
         _taskServiceMock
-            .Setup(s => s.GetProjectTasksAsync(projectId, userId))
-            .ReturnsAsync((List<TaskResponseDto>?)null);
+            .Setup(s => s.ClearTaskDescriptionAsync(taskId, userId))
+            .ReturnsAsync((null, ClearTaskDescriptionResult.TaskNotFound));
 
         // Act
-        var result = await _controller.GetProjectTasks(projectId, CancellationToken.None);
+        var result = await _controller.ClearTaskDescription(taskId);
 
         // Assert
         var notFound = result.Should().BeOfType<NotFoundObjectResult>().Subject;
@@ -660,83 +719,31 @@ public class TaskControllerTests
 
         var apiResponse = notFound.Value.Should().BeOfType<ApiResponse>().Subject;
         apiResponse.Success.Should().BeFalse();
-        apiResponse.Message.Should().Be("Project not found.");
+        apiResponse.Message.Should().Be("Task not found.");
     }
 
     [Fact]
-    public async Task GetProjectTasks_InvalidJwtClaim_ThrowsUnauthorizedAccessException()
-    {
-        // Arrange
-        _controller.ControllerContext = new ControllerContext
-        {
-            HttpContext = new DefaultHttpContext
-            {
-                User = new ClaimsPrincipal(new ClaimsIdentity())
-            }
-        };
-
-        var projectId = Guid.NewGuid();
-
-        // Act
-        Func<Task> act = async () => await _controller.GetProjectTasks(projectId, CancellationToken.None);
-
-        // Assert
-        await act.Should().ThrowAsync<UnauthorizedAccessException>()
-            .WithMessage("Invalid or missing user ID in token.");
-    }
-
-    [Fact]
-    public async Task GetProjectTasks_SuccessfulRetrieval_LogsInformationWithCount()
+    public async Task ClearTaskDescription_ServiceReturnsUserNotProjectMember_Returns403()
     {
         // Arrange
         var userId = Guid.NewGuid();
-        var projectId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
         SetupUserClaims(userId);
 
-        var tasks = new List<TaskResponseDto>
-        {
-            new()
-            {
-                Id = Guid.NewGuid().ToString(),
-                Title = "Task 1",
-                Content = null,
-                TaskOrder = 0,
-                ColumnId = Guid.NewGuid().ToString(),
-                AssignedId = null,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
-            },
-            new()
-            {
-                Id = Guid.NewGuid().ToString(),
-                Title = "Task 2",
-                Content = null,
-                TaskOrder = 1,
-                ColumnId = Guid.NewGuid().ToString(),
-                AssignedId = null,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
-            }
-        };
-
         _taskServiceMock
-            .Setup(s => s.GetProjectTasksAsync(projectId, userId))
-            .ReturnsAsync(tasks);
+            .Setup(s => s.ClearTaskDescriptionAsync(taskId, userId))
+            .ReturnsAsync((null, ClearTaskDescriptionResult.UserNotProjectMember));
 
         // Act
-        var result = await _controller.GetProjectTasks(projectId, CancellationToken.None);
+        var result = await _controller.ClearTaskDescription(taskId);
 
         // Assert
-        result.Should().BeOfType<OkObjectResult>();
+        var objectResult = result.Should().BeOfType<ObjectResult>().Subject;
+        objectResult.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
 
-        _loggerMock.Verify(
-            l => l.Log(
-                LogLevel.Information,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("retrieved") && v.ToString()!.Contains("2 tasks")),
-                It.IsAny<Exception>(),
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            Times.Once);
+        var apiResponse = objectResult.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("You are not a member of this project.");
     }
 
     #endregion
