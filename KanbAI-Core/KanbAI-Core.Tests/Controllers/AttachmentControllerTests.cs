@@ -4,6 +4,7 @@ using FluentAssertions;
 using KanbAI_Core.Controllers;
 using KanbAI_Core.Data;
 using KanbAI_Core.DTOs;
+using KanbAI_Core.Hubs;
 using KanbAI_Core.Models.Configuration;
 using KanbAI_Core.Models.Entities;
 using KanbAI_Core.Models.Enums;
@@ -11,6 +12,7 @@ using KanbAI_Core.Services.Assets;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -31,6 +33,7 @@ public class AttachmentControllerTests : IDisposable
     private readonly Mock<IAssetService> _assetServiceMock;
     private readonly Mock<ILogger<AttachmentController>> _loggerMock;
     private readonly Mock<IWebHostEnvironment> _environmentMock;
+    private readonly Mock<IHubContext<KanbanHub>> _hubContextMock;
     private readonly ApplicationDbContext _context;
     private readonly FileStorageOptions _storageOptions;
     private readonly string _tempStorageRoot;
@@ -46,6 +49,7 @@ public class AttachmentControllerTests : IDisposable
 
         _assetServiceMock = new Mock<IAssetService>();
         _loggerMock = new Mock<ILogger<AttachmentController>>();
+        _hubContextMock = new Mock<IHubContext<KanbanHub>>();
 
         _environmentMock = new Mock<IWebHostEnvironment>();
         _environmentMock.Setup(e => e.ContentRootPath).Returns(_tempStorageRoot);
@@ -67,7 +71,8 @@ public class AttachmentControllerTests : IDisposable
             _context,
             _loggerMock.Object,
             _environmentMock.Object,
-            Options.Create(_storageOptions));
+            Options.Create(_storageOptions),
+            _hubContextMock.Object);
     }
 
     public void Dispose()
@@ -980,6 +985,350 @@ public class AttachmentControllerTests : IDisposable
                 It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("retrieved") && v.ToString()!.Contains("2")),
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    #endregion
+
+    #region DeleteFile: Authorization, Edge Cases, SignalR Broadcast
+
+    [Fact]
+    public async Task DeleteFile_AssetExistsAndUserIsMember_Returns204AndDeletesBothFileAndDbRecord()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var asset = await SeedAsset(userId, ProcessingStatus.Completed, "sample.png", "image/png");
+        WriteFileForAsset(asset, Encoding.UTF8.GetBytes("file-content"));
+
+        var storageDir = Path.Combine(_tempStorageRoot, _storageOptions.StoragePath);
+        var filePath = Path.Combine(storageDir, asset.StorageKey);
+
+        // Verify file exists before deletion
+        System.IO.File.Exists(filePath).Should().BeTrue();
+
+        var hubContextMock = new Mock<IHubContext<KanbanHub>>();
+        var clientsMock = new Mock<IHubClients>();
+        var clientProxyMock = new Mock<IClientProxy>();
+        hubContextMock.Setup(h => h.Clients).Returns(clientsMock.Object);
+        clientsMock.Setup(c => c.Group(It.IsAny<string>())).Returns(clientProxyMock.Object);
+
+        var controller = new AttachmentController(
+            _assetServiceMock.Object,
+            _context,
+            _loggerMock.Object,
+            _environmentMock.Object,
+            Options.Create(_storageOptions),
+            hubContextMock.Object);
+        controller.ControllerContext = _controller.ControllerContext;
+
+        // Act
+        var result = await controller.DeleteFile(asset.Id, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<NoContentResult>();
+
+        // Verify DB record is deleted
+        var deletedAsset = await _context.Assets.FindAsync(asset.Id);
+        deletedAsset.Should().BeNull();
+
+        // Verify physical file is deleted
+        System.IO.File.Exists(filePath).Should().BeFalse();
+
+        // Verify SignalR broadcast was sent
+        var projectId = asset.KanbanTask.Column.ProjectId;
+        var expectedGroupName = $"project_{projectId.ToString().ToLowerInvariant()}";
+        clientsMock.Verify(
+            c => c.Group(expectedGroupName),
+            Times.Once);
+        clientProxyMock.Verify(
+            p => p.SendCoreAsync(
+                "AttachmentDeleted",
+                It.Is<object[]>(args =>
+                    args.Length == 1 &&
+                    args[0] != null),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteFile_AssetDoesNotExist_Returns404NotFound()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var hubContextMock = new Mock<IHubContext<KanbanHub>>();
+        var controller = new AttachmentController(
+            _assetServiceMock.Object,
+            _context,
+            _loggerMock.Object,
+            _environmentMock.Object,
+            Options.Create(_storageOptions),
+            hubContextMock.Object);
+        controller.ControllerContext = _controller.ControllerContext;
+
+        // Act
+        var result = await controller.DeleteFile(Guid.NewGuid(), CancellationToken.None);
+
+        // Assert
+        var notFound = result.Should().BeOfType<NotFoundObjectResult>().Subject;
+        notFound.StatusCode.Should().Be(404);
+
+        var apiResponse = notFound.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("File not found.");
+    }
+
+    [Fact]
+    public async Task DeleteFile_UserIsNotProjectMember_Returns403Forbidden()
+    {
+        // Arrange
+        var ownerId = Guid.NewGuid();
+        var outsiderId = Guid.NewGuid();
+        SetupUserClaims(outsiderId);
+
+        var asset = await SeedAsset(ownerId, ProcessingStatus.Completed, "sample.png", "image/png");
+
+        var hubContextMock = new Mock<IHubContext<KanbanHub>>();
+        var controller = new AttachmentController(
+            _assetServiceMock.Object,
+            _context,
+            _loggerMock.Object,
+            _environmentMock.Object,
+            Options.Create(_storageOptions),
+            hubContextMock.Object);
+        controller.ControllerContext = _controller.ControllerContext;
+
+        // Act
+        var result = await controller.DeleteFile(asset.Id, CancellationToken.None);
+
+        // Assert
+        var objectResult = result.Should().BeOfType<ObjectResult>().Subject;
+        objectResult.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+
+        var apiResponse = objectResult.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("You are not authorized to delete this file.");
+
+        // Verify asset was NOT deleted
+        var assetStillExists = await _context.Assets.FindAsync(asset.Id);
+        assetStillExists.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task DeleteFile_PhysicalFileMissing_Returns204AndDeletesDbRecord()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var asset = await SeedAsset(userId, ProcessingStatus.Completed, "orphaned.png", "image/png");
+        // Do NOT write physical file - simulate orphaned DB record
+
+        var hubContextMock = new Mock<IHubContext<KanbanHub>>();
+        var clientsMock = new Mock<IHubClients>();
+        var clientProxyMock = new Mock<IClientProxy>();
+        hubContextMock.Setup(h => h.Clients).Returns(clientsMock.Object);
+        clientsMock.Setup(c => c.Group(It.IsAny<string>())).Returns(clientProxyMock.Object);
+
+        var controller = new AttachmentController(
+            _assetServiceMock.Object,
+            _context,
+            _loggerMock.Object,
+            _environmentMock.Object,
+            Options.Create(_storageOptions),
+            hubContextMock.Object);
+        controller.ControllerContext = _controller.ControllerContext;
+
+        // Act
+        var result = await controller.DeleteFile(asset.Id, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<NoContentResult>();
+
+        // Verify DB record is deleted (cleanup case)
+        var deletedAsset = await _context.Assets.FindAsync(asset.Id);
+        deletedAsset.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DeleteFile_AssetInPendingStatus_Returns204AndDeletes()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var asset = await SeedAsset(userId, ProcessingStatus.Pending, "pending.png", "image/png");
+        WriteFileForAsset(asset, Encoding.UTF8.GetBytes("pending-content"));
+
+        var hubContextMock = new Mock<IHubContext<KanbanHub>>();
+        var clientsMock = new Mock<IHubClients>();
+        var clientProxyMock = new Mock<IClientProxy>();
+        hubContextMock.Setup(h => h.Clients).Returns(clientsMock.Object);
+        clientsMock.Setup(c => c.Group(It.IsAny<string>())).Returns(clientProxyMock.Object);
+
+        var controller = new AttachmentController(
+            _assetServiceMock.Object,
+            _context,
+            _loggerMock.Object,
+            _environmentMock.Object,
+            Options.Create(_storageOptions),
+            hubContextMock.Object);
+        controller.ControllerContext = _controller.ControllerContext;
+
+        // Act
+        var result = await controller.DeleteFile(asset.Id, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<NoContentResult>();
+
+        // Verify DB record is deleted
+        var deletedAsset = await _context.Assets.FindAsync(asset.Id);
+        deletedAsset.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DeleteFile_AssetInProcessingStatus_Returns204AndDeletes()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var asset = await SeedAsset(userId, ProcessingStatus.Processing, "processing.png", "image/png");
+        WriteFileForAsset(asset, Encoding.UTF8.GetBytes("processing-content"));
+
+        var hubContextMock = new Mock<IHubContext<KanbanHub>>();
+        var clientsMock = new Mock<IHubClients>();
+        var clientProxyMock = new Mock<IClientProxy>();
+        hubContextMock.Setup(h => h.Clients).Returns(clientsMock.Object);
+        clientsMock.Setup(c => c.Group(It.IsAny<string>())).Returns(clientProxyMock.Object);
+
+        var controller = new AttachmentController(
+            _assetServiceMock.Object,
+            _context,
+            _loggerMock.Object,
+            _environmentMock.Object,
+            Options.Create(_storageOptions),
+            hubContextMock.Object);
+        controller.ControllerContext = _controller.ControllerContext;
+
+        // Act
+        var result = await controller.DeleteFile(asset.Id, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<NoContentResult>();
+
+        // Verify DB record is deleted
+        var deletedAsset = await _context.Assets.FindAsync(asset.Id);
+        deletedAsset.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DeleteFile_DiskDeletionFails_Returns500AndLeavesDbRecordIntact()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var asset = await SeedAsset(userId, ProcessingStatus.Completed, "locked.png", "image/png");
+        WriteFileForAsset(asset, Encoding.UTF8.GetBytes("locked-content"));
+
+        var storageDir = Path.Combine(_tempStorageRoot, _storageOptions.StoragePath);
+        var filePath = Path.Combine(storageDir, asset.StorageKey);
+
+        // Make file read-only to simulate disk deletion failure
+        var fileInfo = new FileInfo(filePath);
+        fileInfo.IsReadOnly = true;
+
+        var hubContextMock = new Mock<IHubContext<KanbanHub>>();
+        var controller = new AttachmentController(
+            _assetServiceMock.Object,
+            _context,
+            _loggerMock.Object,
+            _environmentMock.Object,
+            Options.Create(_storageOptions),
+            hubContextMock.Object);
+        controller.ControllerContext = _controller.ControllerContext;
+
+        try
+        {
+            // Act
+            var result = await controller.DeleteFile(asset.Id, CancellationToken.None);
+
+            // Assert
+            var objectResult = result.Should().BeOfType<ObjectResult>().Subject;
+            objectResult.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+
+            var apiResponse = objectResult.Value.Should().BeOfType<ApiResponse>().Subject;
+            apiResponse.Success.Should().BeFalse();
+            apiResponse.Message.Should().Be("Failed to delete file. Please try again.");
+
+            // Verify DB record is NOT deleted
+            var assetStillExists = await _context.Assets.FindAsync(asset.Id);
+            assetStillExists.Should().NotBeNull();
+
+            // Verify physical file still exists
+            System.IO.File.Exists(filePath).Should().BeTrue();
+        }
+        finally
+        {
+            // Clean up: remove read-only attribute
+            if (System.IO.File.Exists(filePath))
+            {
+                fileInfo.IsReadOnly = false;
+            }
+        }
+    }
+
+    [Fact]
+    public async Task DeleteFile_SignalRBroadcastSent_AfterSuccessfulDeletion()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var asset = await SeedAsset(userId, ProcessingStatus.Completed, "test.png", "image/png");
+        WriteFileForAsset(asset, Encoding.UTF8.GetBytes("test-content"));
+
+        var projectId = asset.KanbanTask.Column.ProjectId;
+        var expectedGroupName = $"project_{projectId.ToString().ToLowerInvariant()}";
+
+        var hubContextMock = new Mock<IHubContext<KanbanHub>>();
+        var clientsMock = new Mock<IHubClients>();
+        var clientProxyMock = new Mock<IClientProxy>();
+        hubContextMock.Setup(h => h.Clients).Returns(clientsMock.Object);
+        clientsMock.Setup(c => c.Group(expectedGroupName)).Returns(clientProxyMock.Object);
+
+        var controller = new AttachmentController(
+            _assetServiceMock.Object,
+            _context,
+            _loggerMock.Object,
+            _environmentMock.Object,
+            Options.Create(_storageOptions),
+            hubContextMock.Object);
+        controller.ControllerContext = _controller.ControllerContext;
+
+        // Act
+        var result = await controller.DeleteFile(asset.Id, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<NoContentResult>();
+
+        // Verify SignalR broadcast was called with correct group name
+        clientsMock.Verify(
+            c => c.Group(expectedGroupName),
+            Times.Once);
+
+        // Verify SendAsync was called with correct event name and payload structure
+        clientProxyMock.Verify(
+            p => p.SendCoreAsync(
+                "AttachmentDeleted",
+                It.Is<object[]>(args =>
+                    args.Length == 1 &&
+                    args[0] != null),
+                It.IsAny<CancellationToken>()),
             Times.Once);
     }
 

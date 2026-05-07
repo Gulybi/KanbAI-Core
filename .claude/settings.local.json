@@ -28,8 +28,9 @@
       "Bash(cat > *)",
       "Bash(claude agent -p 'Explore the codebase to answer: *)",
       "Bash(dotnet --version)",
-      "Bash(git checkout *)",
+      "Bash(dotnet list *)",
       "Bash(git stash *)"
+      "Bash(git checkout *)",
     ],
     "additionalDirectories": [
       "C:\\temp\\KanbAI-Core\\.claude",
