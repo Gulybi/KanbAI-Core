@@ -155,6 +155,111 @@ public class TaskApiIntegrationTests : IClassFixture<CustomWebApplicationFactory
 
     #endregion
 
+    #region UpdateTaskDescription Integration Tests
+
+    [Fact]
+    public async Task PutTaskDescription_Unauthenticated_Returns401()
+    {
+        // Arrange
+        var client = CreateUnauthenticatedClient();
+        var taskId = Guid.NewGuid();
+        var dto = new UpdateTaskDescriptionDto { Content = "Description" };
+
+        // Act
+        var response = await client.PutAsJsonAsync($"/api/task/{taskId}/description", dto);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task PutTaskDescription_MissingContentInBody_Returns400()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var client = CreateAuthenticatedClient(userId);
+        var taskId = Guid.NewGuid();
+
+        var invalidBody = new { title = "missing content" };
+
+        // Act
+        var response = await client.PutAsJsonAsync($"/api/task/{taskId}/description", invalidBody);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task PutTaskDescription_NullContent_Returns400()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var client = CreateAuthenticatedClient(userId);
+        var taskId = Guid.NewGuid();
+
+        var body = new { content = (string?)null };
+
+        // Act
+        var response = await client.PutAsJsonAsync($"/api/task/{taskId}/description", body);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task PutTaskDescription_WhitespaceOnlyContent_Returns400()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var client = CreateAuthenticatedClient(userId);
+        var taskId = Guid.NewGuid();
+
+        var dto = new UpdateTaskDescriptionDto { Content = "   \n\t  " };
+
+        // Act
+        var response = await client.PutAsJsonAsync($"/api/task/{taskId}/description", dto);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task PutTaskDescription_ContentExceeds10000Chars_Returns400()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var client = CreateAuthenticatedClient(userId);
+        var taskId = Guid.NewGuid();
+
+        var dto = new UpdateTaskDescriptionDto { Content = new string('A', 10_001) };
+
+        // Act
+        var response = await client.PutAsJsonAsync($"/api/task/{taskId}/description", dto);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    #endregion
+
+    #region ClearTaskDescription Integration Tests
+
+    [Fact]
+    public async Task DeleteTaskDescription_Unauthenticated_Returns401()
+    {
+        // Arrange
+        var client = CreateUnauthenticatedClient();
+        var taskId = Guid.NewGuid();
+
+        // Act
+        var response = await client.DeleteAsync($"/api/task/{taskId}/description");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    #endregion
+
     #region Test Infrastructure
 
     private HttpClient CreateAuthenticatedClient(Guid userId)

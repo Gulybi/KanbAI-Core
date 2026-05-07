@@ -287,6 +287,99 @@ public sealed class TaskService : ITaskService
         return (payload, MoveTaskResult.Success);
     }
 
+    public async Task<(TaskResponseDto? data, UpdateTaskDescriptionResult result)> UpdateTaskDescriptionAsync(
+        Guid taskId,
+        UpdateTaskDescriptionDto dto,
+        Guid userId)
+    {
+        var trimmedContent = dto.Content?.Trim();
+
+        if (string.IsNullOrWhiteSpace(trimmedContent))
+        {
+            return (null, UpdateTaskDescriptionResult.ContentEmpty);
+        }
+
+        if (trimmedContent.Length > 10_000)
+        {
+            return (null, UpdateTaskDescriptionResult.ContentTooLong);
+        }
+
+        var task = await _context.KanbanTasks
+            .Include(t => t.Column)
+                .ThenInclude(c => c.Project)
+                    .ThenInclude(p => p.Members)
+            .FirstOrDefaultAsync(t => t.Id == taskId);
+
+        if (task == null)
+        {
+            _logger.LogInformation("User {UserId} attempted to update description for non-existent task {TaskId}", userId, taskId);
+            return (null, UpdateTaskDescriptionResult.TaskNotFound);
+        }
+
+        if (!task.Column.Project.Members.Any(m => m.UserId == userId))
+        {
+            _logger.LogWarning(
+                "User {UserId} attempted to update description for task {TaskId} in project {ProjectId} without authorization",
+                userId, taskId, task.Column.ProjectId);
+            return (null, UpdateTaskDescriptionResult.UserNotProjectMember);
+        }
+
+        task.Content = trimmedContent;
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "User {UserId} updated description for task {TaskId} in project {ProjectId}",
+            userId, taskId, task.Column.ProjectId);
+
+        var payload = MapToDto(task);
+        await BroadcastAsync(
+            BuildProjectGroupName(task.Column.ProjectId),
+            "TaskUpdated",
+            payload);
+
+        return (payload, UpdateTaskDescriptionResult.Success);
+    }
+
+    public async Task<(TaskResponseDto? data, ClearTaskDescriptionResult result)> ClearTaskDescriptionAsync(
+        Guid taskId,
+        Guid userId)
+    {
+        var task = await _context.KanbanTasks
+            .Include(t => t.Column)
+                .ThenInclude(c => c.Project)
+                    .ThenInclude(p => p.Members)
+            .FirstOrDefaultAsync(t => t.Id == taskId);
+
+        if (task == null)
+        {
+            _logger.LogInformation("User {UserId} attempted to clear description for non-existent task {TaskId}", userId, taskId);
+            return (null, ClearTaskDescriptionResult.TaskNotFound);
+        }
+
+        if (!task.Column.Project.Members.Any(m => m.UserId == userId))
+        {
+            _logger.LogWarning(
+                "User {UserId} attempted to clear description for task {TaskId} in project {ProjectId} without authorization",
+                userId, taskId, task.Column.ProjectId);
+            return (null, ClearTaskDescriptionResult.UserNotProjectMember);
+        }
+
+        task.Content = null;
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "User {UserId} cleared description for task {TaskId} in project {ProjectId}",
+            userId, taskId, task.Column.ProjectId);
+
+        var payload = MapToDto(task);
+        await BroadcastAsync(
+            BuildProjectGroupName(task.Column.ProjectId),
+            "TaskUpdated",
+            payload);
+
+        return (payload, ClearTaskDescriptionResult.Success);
+    }
+
     private static string BuildProjectGroupName(Guid projectId) =>
         $"project_{projectId.ToString().ToLowerInvariant()}";
 

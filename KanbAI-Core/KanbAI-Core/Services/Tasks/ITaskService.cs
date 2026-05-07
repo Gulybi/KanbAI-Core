@@ -39,4 +39,13 @@ public interface ITaskService
         Guid taskId,
         MoveTaskDto dto,
         Guid userId);
+
+    Task<(TaskResponseDto? data, UpdateTaskDescriptionResult result)> UpdateTaskDescriptionAsync(
+        Guid taskId,
+        UpdateTaskDescriptionDto dto,
+        Guid userId);
+
+    Task<(TaskResponseDto? data, ClearTaskDescriptionResult result)> ClearTaskDescriptionAsync(
+        Guid taskId,
+        Guid userId);
 }
