@@ -77,6 +77,27 @@ public sealed class TaskController : ControllerBase
         };
     }
 
+    [HttpGet("project/{projectId}")]
+    public async Task<IActionResult> GetProjectTasks(
+        Guid projectId,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+
+        var tasks = await _taskService.GetProjectTasksAsync(projectId, userId);
+
+        if (tasks == null)
+        {
+            return NotFound(ApiResponse.Fail("Project not found."));
+        }
+
+        _logger.LogInformation(
+            "User {UserId} retrieved {Count} tasks for project {ProjectId}",
+            userId, tasks.Count, projectId);
+
+        return Ok(ApiResponse<List<TaskResponseDto>>.Ok(tasks, "Tasks retrieved successfully."));
+    }
+
     private Guid GetCurrentUserId()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
