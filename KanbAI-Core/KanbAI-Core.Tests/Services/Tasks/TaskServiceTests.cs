@@ -856,4 +856,496 @@ public class TaskServiceTests
 
         return (projectId, column.Id);
     }
+
+    #region UpdateTaskDescriptionAsync Tests
+
+    [Fact]
+    public async Task UpdateTaskDescriptionAsync_ValidContent_ReturnsSuccessAndBroadcastsTaskUpdated()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
+        var userId = Guid.NewGuid();
+        var (projectId, columnId) = await SeedProjectWithColumnAsync(context, userId);
+
+        var task = new KanbanTask
+        {
+            Title = "Task",
+            Content = null,
+            TaskOrder = 0,
+            ColumnId = columnId
+        };
+        context.KanbanTasks.Add(task);
+        await context.SaveChangesAsync();
+
+        var dto = new UpdateTaskDescriptionDto { Content = "New description" };
+
+        // Act
+        var (data, result) = await service.UpdateTaskDescriptionAsync(task.Id, dto, userId);
+
+        // Assert
+        result.Should().Be(UpdateTaskDescriptionResult.Success);
+        data.Should().NotBeNull();
+        data!.Content.Should().Be("New description");
+        data.Id.Should().Be(task.Id.ToString());
+
+        var persisted = await context.KanbanTasks.FindAsync(task.Id);
+        persisted!.Content.Should().Be("New description");
+    }
+
+    [Fact]
+    public async Task UpdateTaskDescriptionAsync_ContentWithTrailingWhitespace_TrimsBeforeSaving()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
+        var userId = Guid.NewGuid();
+        var (projectId, columnId) = await SeedProjectWithColumnAsync(context, userId);
+
+        var task = new KanbanTask
+        {
+            Title = "Task",
+            Content = null,
+            TaskOrder = 0,
+            ColumnId = columnId
+        };
+        context.KanbanTasks.Add(task);
+        await context.SaveChangesAsync();
+
+        var dto = new UpdateTaskDescriptionDto { Content = "Trimmed content   \n\n  " };
+
+        // Act
+        var (data, result) = await service.UpdateTaskDescriptionAsync(task.Id, dto, userId);
+
+        // Assert
+        result.Should().Be(UpdateTaskDescriptionResult.Success);
+        data.Should().NotBeNull();
+        data!.Content.Should().Be("Trimmed content");
+
+        var persisted = await context.KanbanTasks.FindAsync(task.Id);
+        persisted!.Content.Should().Be("Trimmed content");
+    }
+
+    [Fact]
+    public async Task UpdateTaskDescriptionAsync_ContentExceeds10000Chars_ReturnsContentTooLong()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
+        var userId = Guid.NewGuid();
+        var (projectId, columnId) = await SeedProjectWithColumnAsync(context, userId);
+
+        var task = new KanbanTask
+        {
+            Title = "Task",
+            Content = null,
+            TaskOrder = 0,
+            ColumnId = columnId
+        };
+        context.KanbanTasks.Add(task);
+        await context.SaveChangesAsync();
+
+        var dto = new UpdateTaskDescriptionDto { Content = new string('A', 10_001) };
+
+        // Act
+        var (data, result) = await service.UpdateTaskDescriptionAsync(task.Id, dto, userId);
+
+        // Assert
+        result.Should().Be(UpdateTaskDescriptionResult.ContentTooLong);
+        data.Should().BeNull();
+
+        var persisted = await context.KanbanTasks.FindAsync(task.Id);
+        persisted!.Content.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task UpdateTaskDescriptionAsync_ContentIsNull_ReturnsContentEmpty()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
+        var userId = Guid.NewGuid();
+        var (projectId, columnId) = await SeedProjectWithColumnAsync(context, userId);
+
+        var task = new KanbanTask
+        {
+            Title = "Task",
+            Content = null,
+            TaskOrder = 0,
+            ColumnId = columnId
+        };
+        context.KanbanTasks.Add(task);
+        await context.SaveChangesAsync();
+
+        var dto = new UpdateTaskDescriptionDto { Content = null! };
+
+        // Act
+        var (data, result) = await service.UpdateTaskDescriptionAsync(task.Id, dto, userId);
+
+        // Assert
+        result.Should().Be(UpdateTaskDescriptionResult.ContentEmpty);
+        data.Should().BeNull();
+
+        var persisted = await context.KanbanTasks.FindAsync(task.Id);
+        persisted!.Content.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task UpdateTaskDescriptionAsync_ContentIsWhitespaceOnly_ReturnsContentEmpty()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
+        var userId = Guid.NewGuid();
+        var (projectId, columnId) = await SeedProjectWithColumnAsync(context, userId);
+
+        var task = new KanbanTask
+        {
+            Title = "Task",
+            Content = null,
+            TaskOrder = 0,
+            ColumnId = columnId
+        };
+        context.KanbanTasks.Add(task);
+        await context.SaveChangesAsync();
+
+        var dto = new UpdateTaskDescriptionDto { Content = "   \n\t  " };
+
+        // Act
+        var (data, result) = await service.UpdateTaskDescriptionAsync(task.Id, dto, userId);
+
+        // Assert
+        result.Should().Be(UpdateTaskDescriptionResult.ContentEmpty);
+        data.Should().BeNull();
+
+        var persisted = await context.KanbanTasks.FindAsync(task.Id);
+        persisted!.Content.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task UpdateTaskDescriptionAsync_TaskNotFound_ReturnsTaskNotFound()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
+        var userId = Guid.NewGuid();
+        var nonExistentTaskId = Guid.NewGuid();
+
+        var dto = new UpdateTaskDescriptionDto { Content = "Description" };
+
+        // Act
+        var (data, result) = await service.UpdateTaskDescriptionAsync(nonExistentTaskId, dto, userId);
+
+        // Assert
+        result.Should().Be(UpdateTaskDescriptionResult.TaskNotFound);
+        data.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task UpdateTaskDescriptionAsync_UserNotProjectMember_ReturnsUserNotProjectMember()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
+        var memberId = Guid.NewGuid();
+        var outsiderId = Guid.NewGuid();
+        var (projectId, columnId) = await SeedProjectWithColumnAsync(context, memberId);
+
+        var task = new KanbanTask
+        {
+            Title = "Task",
+            Content = null,
+            TaskOrder = 0,
+            ColumnId = columnId
+        };
+        context.KanbanTasks.Add(task);
+        await context.SaveChangesAsync();
+
+        var dto = new UpdateTaskDescriptionDto { Content = "Description" };
+
+        // Act
+        var (data, result) = await service.UpdateTaskDescriptionAsync(task.Id, dto, outsiderId);
+
+        // Assert
+        result.Should().Be(UpdateTaskDescriptionResult.UserNotProjectMember);
+        data.Should().BeNull();
+
+        var persisted = await context.KanbanTasks.FindAsync(task.Id);
+        persisted!.Content.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task UpdateTaskDescriptionAsync_Success_UpdatesUpdatedAtTimestamp()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
+        var userId = Guid.NewGuid();
+        var (projectId, columnId) = await SeedProjectWithColumnAsync(context, userId);
+
+        var task = new KanbanTask
+        {
+            Title = "Task",
+            Content = null,
+            TaskOrder = 0,
+            ColumnId = columnId
+        };
+        context.KanbanTasks.Add(task);
+        await context.SaveChangesAsync();
+
+        var originalUpdatedAt = task.UpdatedAt;
+        await Task.Delay(10);
+
+        var dto = new UpdateTaskDescriptionDto { Content = "New description" };
+
+        // Act
+        var (data, result) = await service.UpdateTaskDescriptionAsync(task.Id, dto, userId);
+
+        // Assert
+        result.Should().Be(UpdateTaskDescriptionResult.Success);
+
+        var persisted = await context.KanbanTasks.FindAsync(task.Id);
+        persisted!.UpdatedAt.Should().BeAfter(originalUpdatedAt);
+    }
+
+    [Fact]
+    public async Task UpdateTaskDescriptionAsync_BroadcastThrows_StillReturnsSuccess()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var clientProxyThatThrows = new Mock<IClientProxy>();
+        clientProxyThatThrows
+            .Setup(c => c.SendCoreAsync(
+                It.IsAny<string>(),
+                It.IsAny<object?[]>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("SignalR failure"));
+
+        var clientsMock = new Mock<IHubClients>();
+        clientsMock.Setup(c => c.Group(It.IsAny<string>())).Returns(clientProxyThatThrows.Object);
+
+        var hubContextMockThatThrows = new Mock<IHubContext<KanbanHub>>();
+        hubContextMockThatThrows.Setup(h => h.Clients).Returns(clientsMock.Object);
+
+        var service = new TaskService(context, _loggerMock.Object, hubContextMockThatThrows.Object);
+        var userId = Guid.NewGuid();
+        var (projectId, columnId) = await SeedProjectWithColumnAsync(context, userId);
+
+        var task = new KanbanTask
+        {
+            Title = "Task",
+            Content = null,
+            TaskOrder = 0,
+            ColumnId = columnId
+        };
+        context.KanbanTasks.Add(task);
+        await context.SaveChangesAsync();
+
+        var dto = new UpdateTaskDescriptionDto { Content = "New description" };
+
+        // Act
+        var (data, result) = await service.UpdateTaskDescriptionAsync(task.Id, dto, userId);
+
+        // Assert
+        result.Should().Be(UpdateTaskDescriptionResult.Success);
+        data.Should().NotBeNull();
+        data!.Content.Should().Be("New description");
+
+        var persisted = await context.KanbanTasks.FindAsync(task.Id);
+        persisted!.Content.Should().Be("New description");
+    }
+
+    #endregion
+
+    #region ClearTaskDescriptionAsync Tests
+
+    [Fact]
+    public async Task ClearTaskDescriptionAsync_TaskHasContent_ClearsContentAndBroadcastsTaskUpdated()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
+        var userId = Guid.NewGuid();
+        var (projectId, columnId) = await SeedProjectWithColumnAsync(context, userId);
+
+        var task = new KanbanTask
+        {
+            Title = "Task",
+            Content = "Existing content",
+            TaskOrder = 0,
+            ColumnId = columnId
+        };
+        context.KanbanTasks.Add(task);
+        await context.SaveChangesAsync();
+
+        // Act
+        var (data, result) = await service.ClearTaskDescriptionAsync(task.Id, userId);
+
+        // Assert
+        result.Should().Be(ClearTaskDescriptionResult.Success);
+        data.Should().NotBeNull();
+        data!.Content.Should().BeNull();
+        data.Id.Should().Be(task.Id.ToString());
+
+        var persisted = await context.KanbanTasks.FindAsync(task.Id);
+        persisted!.Content.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ClearTaskDescriptionAsync_TaskAlreadyHasNullContent_StillReturnsSuccessAndBroadcasts()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
+        var userId = Guid.NewGuid();
+        var (projectId, columnId) = await SeedProjectWithColumnAsync(context, userId);
+
+        var task = new KanbanTask
+        {
+            Title = "Task",
+            Content = null,
+            TaskOrder = 0,
+            ColumnId = columnId
+        };
+        context.KanbanTasks.Add(task);
+        await context.SaveChangesAsync();
+
+        // Act
+        var (data, result) = await service.ClearTaskDescriptionAsync(task.Id, userId);
+
+        // Assert
+        result.Should().Be(ClearTaskDescriptionResult.Success);
+        data.Should().NotBeNull();
+        data!.Content.Should().BeNull();
+
+        var persisted = await context.KanbanTasks.FindAsync(task.Id);
+        persisted!.Content.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ClearTaskDescriptionAsync_TaskNotFound_ReturnsTaskNotFound()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
+        var userId = Guid.NewGuid();
+        var nonExistentTaskId = Guid.NewGuid();
+
+        // Act
+        var (data, result) = await service.ClearTaskDescriptionAsync(nonExistentTaskId, userId);
+
+        // Assert
+        result.Should().Be(ClearTaskDescriptionResult.TaskNotFound);
+        data.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ClearTaskDescriptionAsync_UserNotProjectMember_ReturnsUserNotProjectMember()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
+        var memberId = Guid.NewGuid();
+        var outsiderId = Guid.NewGuid();
+        var (projectId, columnId) = await SeedProjectWithColumnAsync(context, memberId);
+
+        var task = new KanbanTask
+        {
+            Title = "Task",
+            Content = "Content",
+            TaskOrder = 0,
+            ColumnId = columnId
+        };
+        context.KanbanTasks.Add(task);
+        await context.SaveChangesAsync();
+
+        // Act
+        var (data, result) = await service.ClearTaskDescriptionAsync(task.Id, outsiderId);
+
+        // Assert
+        result.Should().Be(ClearTaskDescriptionResult.UserNotProjectMember);
+        data.Should().BeNull();
+
+        var persisted = await context.KanbanTasks.FindAsync(task.Id);
+        persisted!.Content.Should().Be("Content");
+    }
+
+    [Fact]
+    public async Task ClearTaskDescriptionAsync_Success_UpdatesUpdatedAtTimestamp()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
+        var userId = Guid.NewGuid();
+        var (projectId, columnId) = await SeedProjectWithColumnAsync(context, userId);
+
+        var task = new KanbanTask
+        {
+            Title = "Task",
+            Content = "Content",
+            TaskOrder = 0,
+            ColumnId = columnId
+        };
+        context.KanbanTasks.Add(task);
+        await context.SaveChangesAsync();
+
+        var originalUpdatedAt = task.UpdatedAt;
+        await Task.Delay(10);
+
+        // Act
+        var (data, result) = await service.ClearTaskDescriptionAsync(task.Id, userId);
+
+        // Assert
+        result.Should().Be(ClearTaskDescriptionResult.Success);
+
+        var persisted = await context.KanbanTasks.FindAsync(task.Id);
+        persisted!.UpdatedAt.Should().BeAfter(originalUpdatedAt);
+    }
+
+    [Fact]
+    public async Task ClearTaskDescriptionAsync_BroadcastThrows_StillReturnsSuccess()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var clientProxyThatThrows = new Mock<IClientProxy>();
+        clientProxyThatThrows
+            .Setup(c => c.SendCoreAsync(
+                It.IsAny<string>(),
+                It.IsAny<object?[]>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("SignalR failure"));
+
+        var clientsMock = new Mock<IHubClients>();
+        clientsMock.Setup(c => c.Group(It.IsAny<string>())).Returns(clientProxyThatThrows.Object);
+
+        var hubContextMockThatThrows = new Mock<IHubContext<KanbanHub>>();
+        hubContextMockThatThrows.Setup(h => h.Clients).Returns(clientsMock.Object);
+
+        var service = new TaskService(context, _loggerMock.Object, hubContextMockThatThrows.Object);
+        var userId = Guid.NewGuid();
+        var (projectId, columnId) = await SeedProjectWithColumnAsync(context, userId);
+
+        var task = new KanbanTask
+        {
+            Title = "Task",
+            Content = "Content",
+            TaskOrder = 0,
+            ColumnId = columnId
+        };
+        context.KanbanTasks.Add(task);
+        await context.SaveChangesAsync();
+
+        // Act
+        var (data, result) = await service.ClearTaskDescriptionAsync(task.Id, userId);
+
+        // Assert
+        result.Should().Be(ClearTaskDescriptionResult.Success);
+        data.Should().NotBeNull();
+        data!.Content.Should().BeNull();
+
+        var persisted = await context.KanbanTasks.FindAsync(task.Id);
+        persisted!.Content.Should().BeNull();
+    }
+
+    #endregion
 }
