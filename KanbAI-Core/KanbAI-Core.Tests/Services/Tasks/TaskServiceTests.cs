@@ -341,6 +341,476 @@ public class TaskServiceTests
         (await context.KanbanTasks.CountAsync()).Should().Be(0);
     }
 
+    #region GetProjectTasksAsync
+
+    [Fact]
+    public async Task GetProjectTasksAsync_ProjectExistsWithTasks_ReturnsOrderedDtos()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
+        var userId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, Name = "Test Project" };
+        context.Projects.Add(project);
+
+        context.Users.Add(new User
+        {
+            Id = userId,
+            Name = "Member",
+            Email = $"{userId}@example.com",
+            PasswordHash = "hash"
+        });
+
+        context.ProjectMembers.Add(new ProjectMember
+        {
+            ProjectId = projectId,
+            UserId = userId,
+            Role = ProjectRole.Owner
+        });
+
+        var columnAId = Guid.Parse("AAAAAAAA-0000-0000-0000-000000000000");
+        var columnBId = Guid.Parse("BBBBBBBB-0000-0000-0000-000000000000");
+
+        var columnA = new BoardColumn
+        {
+            Id = columnAId,
+            Name = "Column A",
+            ColumnOrder = 0,
+            ProjectId = projectId
+        };
+        var columnB = new BoardColumn
+        {
+            Id = columnBId,
+            Name = "Column B",
+            ColumnOrder = 1,
+            ProjectId = projectId
+        };
+        context.BoardColumns.AddRange(columnA, columnB);
+
+        var task1 = new KanbanTask
+        {
+            Id = Guid.NewGuid(),
+            Title = "Task A0",
+            TaskOrder = 0,
+            ColumnId = columnAId
+        };
+        var task2 = new KanbanTask
+        {
+            Id = Guid.NewGuid(),
+            Title = "Task A1",
+            TaskOrder = 1,
+            ColumnId = columnAId
+        };
+        var task3 = new KanbanTask
+        {
+            Id = Guid.NewGuid(),
+            Title = "Task A2",
+            TaskOrder = 2,
+            ColumnId = columnAId
+        };
+        var task4 = new KanbanTask
+        {
+            Id = Guid.NewGuid(),
+            Title = "Task B0",
+            TaskOrder = 0,
+            ColumnId = columnBId
+        };
+        var task5 = new KanbanTask
+        {
+            Id = Guid.NewGuid(),
+            Title = "Task B1",
+            TaskOrder = 1,
+            ColumnId = columnBId
+        };
+        context.KanbanTasks.AddRange(task1, task2, task3, task4, task5);
+        await context.SaveChangesAsync();
+
+        // Act
+        var result = await service.GetProjectTasksAsync(projectId, userId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Should().HaveCount(5);
+
+        result![0].Id.Should().Be(task1.Id.ToString());
+        result[0].Title.Should().Be("Task A0");
+        result[0].ColumnId.Should().Be(columnAId.ToString());
+        result[0].TaskOrder.Should().Be(0);
+
+        result[1].Id.Should().Be(task2.Id.ToString());
+        result[1].TaskOrder.Should().Be(1);
+
+        result[2].Id.Should().Be(task3.Id.ToString());
+        result[2].TaskOrder.Should().Be(2);
+
+        result[3].Id.Should().Be(task4.Id.ToString());
+        result[3].ColumnId.Should().Be(columnBId.ToString());
+        result[3].TaskOrder.Should().Be(0);
+
+        result[4].Id.Should().Be(task5.Id.ToString());
+        result[4].TaskOrder.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GetProjectTasksAsync_ProjectExistsWithNoTasks_ReturnsEmptyList()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
+        var userId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, Name = "Empty Project" };
+        context.Projects.Add(project);
+
+        context.Users.Add(new User
+        {
+            Id = userId,
+            Name = "Member",
+            Email = $"{userId}@example.com",
+            PasswordHash = "hash"
+        });
+
+        context.ProjectMembers.Add(new ProjectMember
+        {
+            ProjectId = projectId,
+            UserId = userId,
+            Role = ProjectRole.Owner
+        });
+
+        var column = new BoardColumn
+        {
+            Id = Guid.NewGuid(),
+            Name = "Column",
+            ColumnOrder = 0,
+            ProjectId = projectId
+        };
+        context.BoardColumns.Add(column);
+        await context.SaveChangesAsync();
+
+        // Act
+        var result = await service.GetProjectTasksAsync(projectId, userId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetProjectTasksAsync_ProjectDoesNotExist_ReturnsNull()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
+        var userId = Guid.NewGuid();
+        var nonExistentProjectId = Guid.NewGuid();
+
+        // Act
+        var result = await service.GetProjectTasksAsync(nonExistentProjectId, userId);
+
+        // Assert
+        result.Should().BeNull();
+
+        _loggerMock.Verify(
+            l => l.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("non-existent project")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task GetProjectTasksAsync_UserNotProjectMember_ReturnsNull()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
+        var memberId = Guid.NewGuid();
+        var outsiderId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, Name = "Private Project" };
+        context.Projects.Add(project);
+
+        context.Users.Add(new User
+        {
+            Id = memberId,
+            Name = "Member",
+            Email = $"{memberId}@example.com",
+            PasswordHash = "hash"
+        });
+
+        context.ProjectMembers.Add(new ProjectMember
+        {
+            ProjectId = projectId,
+            UserId = memberId,
+            Role = ProjectRole.Owner
+        });
+
+        await context.SaveChangesAsync();
+
+        // Act
+        var result = await service.GetProjectTasksAsync(projectId, outsiderId);
+
+        // Assert
+        result.Should().BeNull();
+
+        _loggerMock.Verify(
+            l => l.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("without authorization")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task GetProjectTasksAsync_MultipleProjectsExist_ReturnsTasksForRequestedProjectOnly()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
+        var userId = Guid.NewGuid();
+        var projectAId = Guid.NewGuid();
+        var projectBId = Guid.NewGuid();
+
+        context.Users.Add(new User
+        {
+            Id = userId,
+            Name = "Member",
+            Email = $"{userId}@example.com",
+            PasswordHash = "hash"
+        });
+
+        var projectA = new Project { Id = projectAId, Name = "Project A" };
+        var projectB = new Project { Id = projectBId, Name = "Project B" };
+        context.Projects.AddRange(projectA, projectB);
+
+        context.ProjectMembers.AddRange(
+            new ProjectMember { ProjectId = projectAId, UserId = userId, Role = ProjectRole.Owner },
+            new ProjectMember { ProjectId = projectBId, UserId = userId, Role = ProjectRole.Owner });
+
+        var columnA = new BoardColumn
+        {
+            Id = Guid.NewGuid(),
+            Name = "Column A",
+            ColumnOrder = 0,
+            ProjectId = projectAId
+        };
+        var columnB = new BoardColumn
+        {
+            Id = Guid.NewGuid(),
+            Name = "Column B",
+            ColumnOrder = 0,
+            ProjectId = projectBId
+        };
+        context.BoardColumns.AddRange(columnA, columnB);
+
+        var taskA1 = new KanbanTask
+        {
+            Id = Guid.NewGuid(),
+            Title = "Task A1",
+            TaskOrder = 0,
+            ColumnId = columnA.Id
+        };
+        var taskA2 = new KanbanTask
+        {
+            Id = Guid.NewGuid(),
+            Title = "Task A2",
+            TaskOrder = 1,
+            ColumnId = columnA.Id
+        };
+        var taskB1 = new KanbanTask
+        {
+            Id = Guid.NewGuid(),
+            Title = "Task B1",
+            TaskOrder = 0,
+            ColumnId = columnB.Id
+        };
+        context.KanbanTasks.AddRange(taskA1, taskA2, taskB1);
+        await context.SaveChangesAsync();
+
+        // Act
+        var result = await service.GetProjectTasksAsync(projectAId, userId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Should().HaveCount(2);
+        result!.Should().OnlyContain(t => t.Title.StartsWith("Task A"));
+        result.Should().NotContain(t => t.Title == "Task B1");
+    }
+
+    [Fact]
+    public async Task GetProjectTasksAsync_OrderingByColumnIdThenTaskOrder_IsCorrect()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
+        var userId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, Name = "Test Project" };
+        context.Projects.Add(project);
+
+        context.Users.Add(new User
+        {
+            Id = userId,
+            Name = "Member",
+            Email = $"{userId}@example.com",
+            PasswordHash = "hash"
+        });
+
+        context.ProjectMembers.Add(new ProjectMember
+        {
+            ProjectId = projectId,
+            UserId = userId,
+            Role = ProjectRole.Owner
+        });
+
+        var colC = new BoardColumn { Id = Guid.Parse("CCCCCCCC-0000-0000-0000-000000000000"), Name = "C", ColumnOrder = 2, ProjectId = projectId };
+        var colA = new BoardColumn { Id = Guid.Parse("AAAAAAAA-0000-0000-0000-000000000000"), Name = "A", ColumnOrder = 0, ProjectId = projectId };
+        var colB = new BoardColumn { Id = Guid.Parse("BBBBBBBB-0000-0000-0000-000000000000"), Name = "B", ColumnOrder = 1, ProjectId = projectId };
+        context.BoardColumns.AddRange(colC, colA, colB);
+
+        var taskC0 = new KanbanTask { Id = Guid.NewGuid(), Title = "C0", TaskOrder = 0, ColumnId = colC.Id };
+        var taskC2 = new KanbanTask { Id = Guid.NewGuid(), Title = "C2", TaskOrder = 2, ColumnId = colC.Id };
+        var taskC1 = new KanbanTask { Id = Guid.NewGuid(), Title = "C1", TaskOrder = 1, ColumnId = colC.Id };
+        var taskA1 = new KanbanTask { Id = Guid.NewGuid(), Title = "A1", TaskOrder = 1, ColumnId = colA.Id };
+        var taskA0 = new KanbanTask { Id = Guid.NewGuid(), Title = "A0", TaskOrder = 0, ColumnId = colA.Id };
+        var taskB0 = new KanbanTask { Id = Guid.NewGuid(), Title = "B0", TaskOrder = 0, ColumnId = colB.Id };
+        context.KanbanTasks.AddRange(taskC0, taskC2, taskC1, taskA1, taskA0, taskB0);
+        await context.SaveChangesAsync();
+
+        // Act
+        var result = await service.GetProjectTasksAsync(projectId, userId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Should().HaveCount(6);
+
+        var titles = result!.Select(t => t.Title).ToList();
+        titles.Should().Equal("A0", "A1", "B0", "C0", "C1", "C2");
+    }
+
+    [Fact]
+    public async Task GetProjectTasksAsync_SuccessfulRetrieval_LogsInformationWithCount()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
+        var userId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, Name = "Test Project" };
+        context.Projects.Add(project);
+
+        context.Users.Add(new User
+        {
+            Id = userId,
+            Name = "Member",
+            Email = $"{userId}@example.com",
+            PasswordHash = "hash"
+        });
+
+        context.ProjectMembers.Add(new ProjectMember
+        {
+            ProjectId = projectId,
+            UserId = userId,
+            Role = ProjectRole.Owner
+        });
+
+        var column = new BoardColumn
+        {
+            Id = Guid.NewGuid(),
+            Name = "Column",
+            ColumnOrder = 0,
+            ProjectId = projectId
+        };
+        context.BoardColumns.Add(column);
+
+        context.KanbanTasks.AddRange(
+            new KanbanTask { Title = "Task 1", TaskOrder = 0, ColumnId = column.Id },
+            new KanbanTask { Title = "Task 2", TaskOrder = 1, ColumnId = column.Id },
+            new KanbanTask { Title = "Task 3", TaskOrder = 2, ColumnId = column.Id });
+        await context.SaveChangesAsync();
+
+        // Act
+        var result = await service.GetProjectTasksAsync(projectId, userId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Should().HaveCount(3);
+
+        _loggerMock.Verify(
+            l => l.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("retrieved") && v.ToString()!.Contains("3 tasks")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task GetProjectTasksAsync_QueryUsesAsNoTracking_DoesNotTrackEntities()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var service = new TaskService(context, _loggerMock.Object, _hubContextMock.Object);
+        var userId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, Name = "Test Project" };
+        context.Projects.Add(project);
+
+        context.Users.Add(new User
+        {
+            Id = userId,
+            Name = "Member",
+            Email = $"{userId}@example.com",
+            PasswordHash = "hash"
+        });
+
+        context.ProjectMembers.Add(new ProjectMember
+        {
+            ProjectId = projectId,
+            UserId = userId,
+            Role = ProjectRole.Owner
+        });
+
+        var column = new BoardColumn
+        {
+            Id = Guid.NewGuid(),
+            Name = "Column",
+            ColumnOrder = 0,
+            ProjectId = projectId
+        };
+        context.BoardColumns.Add(column);
+
+        context.KanbanTasks.AddRange(
+            new KanbanTask { Title = "Task 1", TaskOrder = 0, ColumnId = column.Id },
+            new KanbanTask { Title = "Task 2", TaskOrder = 1, ColumnId = column.Id });
+        await context.SaveChangesAsync();
+
+        context.ChangeTracker.Clear();
+
+        // Act
+        var result = await service.GetProjectTasksAsync(projectId, userId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Should().HaveCount(2);
+
+        context.ChangeTracker.Entries<KanbanTask>().Should().BeEmpty();
+    }
+
+    #endregion
+
     private static ApplicationDbContext CreateInMemoryContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

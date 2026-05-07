@@ -518,6 +518,229 @@ public class TaskControllerTests
 
     #endregion
 
+    #region GetProjectTasks
+
+    [Fact]
+    public async Task GetProjectTasks_ProjectExistsWithTasks_Returns200WithOrderedDtos()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var columnAId = Guid.NewGuid();
+        var columnBId = Guid.NewGuid();
+
+        var tasks = new List<TaskResponseDto>
+        {
+            new()
+            {
+                Id = Guid.NewGuid().ToString(),
+                Title = "Task A0",
+                Content = null,
+                TaskOrder = 0,
+                ColumnId = columnAId.ToString(),
+                AssignedId = null,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            },
+            new()
+            {
+                Id = Guid.NewGuid().ToString(),
+                Title = "Task A1",
+                Content = null,
+                TaskOrder = 1,
+                ColumnId = columnAId.ToString(),
+                AssignedId = null,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            },
+            new()
+            {
+                Id = Guid.NewGuid().ToString(),
+                Title = "Task B0",
+                Content = "Description",
+                TaskOrder = 0,
+                ColumnId = columnBId.ToString(),
+                AssignedId = null,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            }
+        };
+
+        _taskServiceMock
+            .Setup(s => s.GetProjectTasksAsync(projectId, userId))
+            .ReturnsAsync(tasks);
+
+        // Act
+        var result = await _controller.GetProjectTasks(projectId, CancellationToken.None);
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.StatusCode.Should().Be(200);
+
+        var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<List<TaskResponseDto>>>().Subject;
+        apiResponse.Success.Should().BeTrue();
+        apiResponse.Message.Should().Be("Tasks retrieved successfully.");
+        apiResponse.Data.Should().NotBeNull();
+        apiResponse.Data.Should().HaveCount(3);
+        apiResponse.Data.Should().BeEquivalentTo(tasks, opts => opts.WithStrictOrdering());
+    }
+
+    [Fact]
+    public async Task GetProjectTasks_ProjectExistsWithNoTasks_Returns200WithEmptyList()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var emptyList = new List<TaskResponseDto>();
+
+        _taskServiceMock
+            .Setup(s => s.GetProjectTasksAsync(projectId, userId))
+            .ReturnsAsync(emptyList);
+
+        // Act
+        var result = await _controller.GetProjectTasks(projectId, CancellationToken.None);
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.StatusCode.Should().Be(200);
+
+        var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<List<TaskResponseDto>>>().Subject;
+        apiResponse.Success.Should().BeTrue();
+        apiResponse.Message.Should().Be("Tasks retrieved successfully.");
+        apiResponse.Data.Should().NotBeNull();
+        apiResponse.Data.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetProjectTasks_ProjectDoesNotExist_Returns404NotFound()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        _taskServiceMock
+            .Setup(s => s.GetProjectTasksAsync(projectId, userId))
+            .ReturnsAsync((List<TaskResponseDto>?)null);
+
+        // Act
+        var result = await _controller.GetProjectTasks(projectId, CancellationToken.None);
+
+        // Assert
+        var notFound = result.Should().BeOfType<NotFoundObjectResult>().Subject;
+        notFound.StatusCode.Should().Be(404);
+
+        var apiResponse = notFound.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("Project not found.");
+    }
+
+    [Fact]
+    public async Task GetProjectTasks_UserNotProjectMember_Returns404NotFound()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        _taskServiceMock
+            .Setup(s => s.GetProjectTasksAsync(projectId, userId))
+            .ReturnsAsync((List<TaskResponseDto>?)null);
+
+        // Act
+        var result = await _controller.GetProjectTasks(projectId, CancellationToken.None);
+
+        // Assert
+        var notFound = result.Should().BeOfType<NotFoundObjectResult>().Subject;
+        notFound.StatusCode.Should().Be(404);
+
+        var apiResponse = notFound.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("Project not found.");
+    }
+
+    [Fact]
+    public async Task GetProjectTasks_InvalidJwtClaim_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        _controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity())
+            }
+        };
+
+        var projectId = Guid.NewGuid();
+
+        // Act
+        Func<Task> act = async () => await _controller.GetProjectTasks(projectId, CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("Invalid or missing user ID in token.");
+    }
+
+    [Fact]
+    public async Task GetProjectTasks_SuccessfulRetrieval_LogsInformationWithCount()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        var tasks = new List<TaskResponseDto>
+        {
+            new()
+            {
+                Id = Guid.NewGuid().ToString(),
+                Title = "Task 1",
+                Content = null,
+                TaskOrder = 0,
+                ColumnId = Guid.NewGuid().ToString(),
+                AssignedId = null,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            },
+            new()
+            {
+                Id = Guid.NewGuid().ToString(),
+                Title = "Task 2",
+                Content = null,
+                TaskOrder = 1,
+                ColumnId = Guid.NewGuid().ToString(),
+                AssignedId = null,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            }
+        };
+
+        _taskServiceMock
+            .Setup(s => s.GetProjectTasksAsync(projectId, userId))
+            .ReturnsAsync(tasks);
+
+        // Act
+        var result = await _controller.GetProjectTasks(projectId, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+
+        _loggerMock.Verify(
+            l => l.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("retrieved") && v.ToString()!.Contains("2 tasks")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private void SetupUserClaims(Guid userId)

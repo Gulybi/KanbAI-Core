@@ -287,6 +287,44 @@ public sealed class TaskService : ITaskService
         return (payload, MoveTaskResult.Success);
     }
 
+    public async Task<List<TaskResponseDto>?> GetProjectTasksAsync(Guid projectId, Guid userId)
+    {
+        var project = await _context.Projects
+            .Include(p => p.Members)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == projectId);
+
+        if (project == null)
+        {
+            _logger.LogInformation(
+                "User {UserId} requested tasks for non-existent project {ProjectId}",
+                userId, projectId);
+            return null;
+        }
+
+        if (!project.Members.Any(m => m.UserId == userId))
+        {
+            _logger.LogWarning(
+                "User {UserId} attempted to access tasks for project {ProjectId} without authorization",
+                userId, projectId);
+            return null;
+        }
+
+        var tasks = await _context.KanbanTasks
+            .AsNoTracking()
+            .Include(t => t.Column)
+            .Where(t => t.Column.ProjectId == projectId)
+            .OrderBy(t => t.ColumnId)
+                .ThenBy(t => t.TaskOrder)
+            .ToListAsync();
+
+        _logger.LogInformation(
+            "User {UserId} retrieved {Count} tasks for project {ProjectId}",
+            userId, tasks.Count, projectId);
+
+        return tasks.Select(MapToDto).ToList();
+    }
+
     private static string BuildProjectGroupName(Guid projectId) =>
         $"project_{projectId.ToString().ToLowerInvariant()}";
 
