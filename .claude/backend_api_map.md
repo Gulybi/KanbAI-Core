@@ -90,10 +90,16 @@ Factories in code: `ApiResponse.Ok(...)`, `ApiResponse<T>.Ok(data, ...)`, `ApiRe
 |--------|-------|------|--------------|-------------------|
 | `POST` | `/api/task/column/{columnId}` | JWT | `CreateTaskDto` | `201` — `ApiResponse<TaskResponseDto>` |
 | `PUT` | `/api/task/{taskId}/move` | JWT | `MoveTaskDto` | `200` — `ApiResponse<TaskResponseDto>` |
+| `PUT` | `/api/task/{taskId}/description` | JWT | `UpdateTaskDescriptionDto` | `200` — `ApiResponse<TaskResponseDto>` |
+| `DELETE` | `/api/task/{taskId}/description` | JWT | — | `204` |
 
 **Create task** failures (examples): `404` column not found; `403` not a project member; `400` missing title, assignee not found, or assignee not a member.
 
 **Move task** failures (examples): `404` task or target column; `403` not a member; `400` cross-project move or invalid `taskOrder`.
+
+**Update task description** failures: `400` — `"Task description cannot be empty."` (whitespace-only after trim) or `"Task description cannot exceed 10,000 characters."`; `403` — `"You are not a member of this project."`; `404` — `"Task not found."`. On success, the task's `content` is replaced with the trimmed value and a `TaskUpdated` SignalR event is broadcast.
+
+**Clear task description** failures: `403` — `"You are not a member of this project."`; `404` — `"Task not found."`. On success, the task's `content` is set to `null`, the endpoint returns `204 No Content`, and a `TaskUpdated` SignalR event is broadcast.
 
 ---
 
@@ -106,6 +112,7 @@ Attachments are uploaded against a `KanbanTask` and stored as `Asset` records. P
 | `POST` | `/api/attachment/task/{taskId}` | JWT | `multipart/form-data` with single `file` field (`IFormFile`) | `201` — `ApiResponse<AssetResponseDto>` |
 | `GET` | `/api/attachment/task/{taskId}` | JWT | — | `200` — `ApiResponse<IEnumerable<AssetResponseDto>>` |
 | `GET` | `/api/attachment/{assetId}` | JWT | — | `200` — raw file stream with `Content-Type` set from stored MIME type, `Content-Disposition: inline` for images, `attachment` otherwise |
+| `DELETE` | `/api/attachment/{assetId}` | JWT | — | `204` |
 
 **Upload constraints**
 
@@ -121,6 +128,8 @@ Attachments are uploaded against a `KanbanTask` and stored as `Asset` records. P
 **List failures**: `403` — `"You are not authorized to access this task's attachments."` (caller is not a member of the owning project); `404` — `"Task not found."`. Only `Completed` assets are returned, ordered by `createdAt` descending; assets in `Pending`/`Processing`/`Failed` state are omitted.
 
 **Download failures**: `400` — `"File is still being processed."` (asset still `Pending`/`Processing`); `403` — `"You are not authorized to access this file."` (caller is not a member of the owning project); `404` — `"File not found."` (asset missing, physical file missing, or path escaped storage root) and `"File upload failed."` (asset is `Failed`).
+
+**Delete failures**: `403` — `"You are not authorized to delete this file."` (caller is not a member of the owning project); `404` — `"File not found."` (asset missing); `500` — `"Failed to delete file. Please try again."` (I/O error removing the physical file). On success, the DB row is removed and an `AttachmentDeleted` SignalR event is broadcast. If the DB row exists but the physical file is already missing, the DB row is still removed and the delete succeeds.
 
 ---
 
@@ -151,16 +160,20 @@ All events are broadcast to the group `project_{projectId lowercase}`. Payloads 
 | `ColumnDeleted` | `DELETE /api/column/{id}` | `ColumnDeletedEventDto` |
 | `TaskCreated` | `POST /api/task/column/{columnId}` | `TaskResponseDto` |
 | `TaskMoved` | `PUT /api/task/{taskId}/move` | `TaskMovedEventDto` |
+| `TaskUpdated` | `PUT /api/task/{taskId}/description`, `DELETE /api/task/{taskId}/description` | `TaskResponseDto` |
 | `AssetUploadStarted` | `POST /api/attachment/task/{taskId}` | `AssetStatusEventDto` (status `Pending`) |
 | `AssetProcessing` | `POST /api/attachment/task/{taskId}` | `AssetStatusEventDto` (status `Processing`) |
 | `AssetCompleted` | `POST /api/attachment/task/{taskId}` | `AssetResponseDto` (status `Completed`) |
 | `AssetFailed` | `POST /api/attachment/task/{taskId}` | `AssetFailedEventDto` |
+| `AttachmentDeleted` | `DELETE /api/attachment/{assetId}` | `AttachmentDeletedEventDto` |
 
 Broadcasts happen after the EF Core `SaveChangesAsync` succeeds. Broadcast failures are logged but do not fail the originating HTTP request — the mutation is the source of truth, the broadcast is best-effort notification.
 
 **Asset lifecycle:** The four asset events fire in sequence on a single upload — `AssetUploadStarted` (row inserted as `Pending`), `AssetProcessing` (status flipped before the file write), then either `AssetCompleted` (file written successfully, full `AssetResponseDto` with final storage keys) or `AssetFailed` (file write failed, DB row rolled back). Clients should reconcile by `assetId`.
 
-> ⚠️ **Not yet broadcast:** `ProjectCreated` (no group exists at creation time), and no task-update/task-delete events exist yet because those endpoints are not implemented. Clients relying on `GET /api/project` after page load will still reflect new projects.
+**Task description updates:** Both `PUT /api/task/{taskId}/description` and `DELETE /api/task/{taskId}/description` emit the same `TaskUpdated` event with the post-mutation `TaskResponseDto`. Clients should reconcile by `id` and use `content` as the source of truth (it is `null` after a clear).
+
+> ⚠️ **Not yet broadcast:** `ProjectCreated` (no group exists at creation time), and no `TaskDeleted` event exists yet because a task-delete endpoint is not implemented. Clients relying on `GET /api/project` after page load will still reflect new projects.
 
 ---
 
@@ -295,6 +308,16 @@ The frontend Members UI (issue #33) sends `{ email }` only.
 | `columnId` | `string` (GUID) | Required — target column |
 | `taskOrder` | `number` | Required, ≥ 0 |
 
+### `UpdateTaskDescriptionDto`
+
+Body of `PUT /api/task/{taskId}/description`. No `[Required]` annotations — validation is performed in the service layer on the trimmed value.
+
+| JSON property | Type | Validation |
+|---------------|------|------------|
+| `content` | `string` | Required, non-empty after trim, max 10,000 characters |
+
+To clear a task's description, call `DELETE /api/task/{taskId}/description` (no body).
+
 ### `AssetResponseDto`
 
 Returned by `POST /api/attachment/task/{taskId}` and as the payload of the `AssetCompleted` SignalR event.
@@ -371,7 +394,16 @@ Returned by `POST /api/attachment/task/{taskId}` and as the payload of the `Asse
 | `taskId` | `string` (GUID) | |
 | `errorMessage` | `string` | Human-readable reason (e.g., storage error) |
 
-The `MemberAdded`, `ColumnCreated`, `TaskCreated`, and `AssetCompleted` events send the corresponding response DTO (`MemberResponseDto`, `ColumnResponseDto`, `TaskResponseDto`, `AssetResponseDto`) directly as the payload — no event-specific wrapper.
+**`AttachmentDeletedEventDto`** — payload of `AttachmentDeleted`
+
+Emitted as an anonymous object from `AttachmentController.DeleteAttachment`; the shape on the wire is:
+
+| JSON property | Type | Notes |
+|---------------|------|--------|
+| `assetId` | `string` (GUID) | The asset that was deleted |
+| `taskId` | `string` (GUID) | Owning task — use to scope the removal client-side |
+
+The `MemberAdded`, `ColumnCreated`, `TaskCreated`, `TaskUpdated`, and `AssetCompleted` events send the corresponding response DTO (`MemberResponseDto`, `ColumnResponseDto`, `TaskResponseDto`, `AssetResponseDto`) directly as the payload — no event-specific wrapper.
 
 ---
 

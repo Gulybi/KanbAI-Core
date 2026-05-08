@@ -68,7 +68,7 @@ public class ProjectControllerTests
     }
 
     [Fact]
-    public async Task CreateProject_MissingNameIdentifierClaim_ThrowsUnauthorizedAccessException()
+    public async Task CreateProject_MissingNameIdentifierClaim_Returns401Unauthorized()
     {
         // Arrange
         _controller.ControllerContext = new ControllerContext
@@ -86,11 +86,14 @@ public class ProjectControllerTests
         };
 
         // Act
-        Func<Task> act = async () => await _controller.CreateProject(dto);
+        var result = await _controller.CreateProject(dto);
 
         // Assert
-        await act.Should().ThrowAsync<UnauthorizedAccessException>()
-            .WithMessage("Invalid or missing user ID in token.");
+        var unauthorizedResult = result.Should().BeOfType<UnauthorizedObjectResult>().Subject;
+        unauthorizedResult.StatusCode.Should().Be(401);
+        var apiResponse = unauthorizedResult.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("Invalid or missing user ID in token.");
     }
 
     #endregion
