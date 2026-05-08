@@ -24,8 +24,12 @@ public sealed class ProjectController : ControllerBase
     public async Task<IActionResult> CreateProject([FromBody] CreateProjectDto dto)
     {
         var userId = GetCurrentUserId();
+        if (userId == null)
+        {
+            return UnauthorizedResponse();
+        }
 
-        var result = await _projectService.CreateProjectAsync(dto, userId);
+        var result = await _projectService.CreateProjectAsync(dto, userId.Value);
 
         return CreatedAtAction(
             nameof(GetProjectById),
@@ -37,8 +41,12 @@ public sealed class ProjectController : ControllerBase
     public async Task<IActionResult> GetUserProjects()
     {
         var userId = GetCurrentUserId();
+        if (userId == null)
+        {
+            return UnauthorizedResponse();
+        }
 
-        var projects = await _projectService.GetUserProjectsAsync(userId);
+        var projects = await _projectService.GetUserProjectsAsync(userId.Value);
 
         return Ok(ApiResponse<List<ProjectResponseDto>>.Ok(projects));
     }
@@ -47,8 +55,12 @@ public sealed class ProjectController : ControllerBase
     public async Task<IActionResult> GetProjectById(Guid id)
     {
         var userId = GetCurrentUserId();
+        if (userId == null)
+        {
+            return UnauthorizedResponse();
+        }
 
-        var project = await _projectService.GetProjectByIdAsync(id, userId);
+        var project = await _projectService.GetProjectByIdAsync(id, userId.Value);
 
         if (project == null)
         {
@@ -62,8 +74,12 @@ public sealed class ProjectController : ControllerBase
     public async Task<IActionResult> UpdateProject(Guid id, [FromBody] UpdateProjectDto dto)
     {
         var userId = GetCurrentUserId();
+        if (userId == null)
+        {
+            return UnauthorizedResponse();
+        }
 
-        var result = await _projectService.UpdateProjectAsync(id, dto, userId);
+        var result = await _projectService.UpdateProjectAsync(id, dto, userId.Value);
 
         if (result == null)
         {
@@ -77,8 +93,12 @@ public sealed class ProjectController : ControllerBase
     public async Task<IActionResult> DeleteProject(Guid id)
     {
         var userId = GetCurrentUserId();
+        if (userId == null)
+        {
+            return UnauthorizedResponse();
+        }
 
-        var (isDeleted, errorMessage) = await _projectService.DeleteProjectAsync(id, userId);
+        var (isDeleted, errorMessage) = await _projectService.DeleteProjectAsync(id, userId.Value);
 
         if (!isDeleted)
         {
@@ -96,11 +116,15 @@ public sealed class ProjectController : ControllerBase
     public async Task<IActionResult> AddMember(Guid projectId, [FromBody] AddMemberDto dto)
     {
         var requestingUserId = GetCurrentUserId();
+        if (requestingUserId == null)
+        {
+            return UnauthorizedResponse();
+        }
 
         var (member, errorMessage) = await _projectService.AddMemberAsync(
             projectId,
             dto,
-            requestingUserId);
+            requestingUserId.Value);
 
         if (member == null)
         {
@@ -126,11 +150,15 @@ public sealed class ProjectController : ControllerBase
     public async Task<IActionResult> RemoveMember(Guid projectId, Guid userId)
     {
         var requestingUserId = GetCurrentUserId();
+        if (requestingUserId == null)
+        {
+            return UnauthorizedResponse();
+        }
 
         var (isRemoved, errorMessage) = await _projectService.RemoveMemberAsync(
             projectId,
             userId,
-            requestingUserId);
+            requestingUserId.Value);
 
         if (!isRemoved)
         {
@@ -152,8 +180,12 @@ public sealed class ProjectController : ControllerBase
     public async Task<IActionResult> GetProjectMembers(Guid projectId)
     {
         var requestingUserId = GetCurrentUserId();
+        if (requestingUserId == null)
+        {
+            return UnauthorizedResponse();
+        }
 
-        var members = await _projectService.GetProjectMembersAsync(projectId, requestingUserId);
+        var members = await _projectService.GetProjectMembersAsync(projectId, requestingUserId.Value);
 
         if (members == null)
         {
@@ -163,16 +195,31 @@ public sealed class ProjectController : ControllerBase
         return Ok(ApiResponse<List<MemberResponseDto>>.Ok(members));
     }
 
-    private Guid GetCurrentUserId()
+    private Guid? GetCurrentUserId()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+        _logger.LogDebug(
+            "GetCurrentUserId invoked. NameIdentifier claim present: {ClaimPresent}",
+            userIdClaim != null);
+
+        if (string.IsNullOrEmpty(userIdClaim))
         {
-            _logger.LogError("Invalid or missing NameIdentifier claim in JWT token");
-            throw new UnauthorizedAccessException("Invalid or missing user ID in token.");
+            _logger.LogWarning("Authenticated request missing NameIdentifier claim");
+            return null;
+        }
+
+        if (!Guid.TryParse(userIdClaim, out var userId))
+        {
+            _logger.LogWarning(
+                "Authenticated request has unparseable NameIdentifier claim: {RawValue}",
+                userIdClaim);
+            return null;
         }
 
         return userId;
     }
+
+    private IActionResult UnauthorizedResponse() =>
+        Unauthorized(ApiResponse.Fail("Invalid or missing user ID in token."));
 }
