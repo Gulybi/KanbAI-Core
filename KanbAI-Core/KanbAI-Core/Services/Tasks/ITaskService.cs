@@ -48,4 +48,18 @@ public interface ITaskService
     Task<(TaskResponseDto? data, ClearTaskDescriptionResult result)> ClearTaskDescriptionAsync(
         Guid taskId,
         Guid userId);
+
+    /// <summary>
+    /// Retrieves all tasks for the specified project.
+    /// Authorization: the caller must be a member of the project.
+    /// Tasks are returned sorted by (ColumnId ASC, TaskOrder ASC) for client-side bucketing.
+    /// </summary>
+    /// <param name="projectId">The project ID.</param>
+    /// <param name="userId">The authenticated user's ID (from JWT claims).</param>
+    /// <returns>
+    /// A list of <see cref="TaskResponseDto"/> objects when the project exists and the user is a member.
+    /// Returns <c>null</c> when the project does not exist or the user is not a project member.
+    /// Returns an empty list when the project exists, the user is a member, but the project has no tasks.
+    /// </returns>
+    Task<List<TaskResponseDto>?> GetProjectTasksAsync(Guid projectId, Guid userId);
 }

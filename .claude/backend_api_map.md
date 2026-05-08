@@ -64,6 +64,8 @@ Factories in code: `ApiResponse.Ok(...)`, `ApiResponse<T>.Ok(data, ...)`, `ApiRe
 | `POST` | `/api/project/{projectId}/members` | JWT | `AddMemberDto` | `201` — `ApiResponse<MemberResponseDto>` / `400` / `403` / `404` |
 | `DELETE` | `/api/project/{projectId}/members/{userId}` | JWT | — | `204` / `400` / `403` / `404` |
 
+**All project endpoints** may additionally return `401` — `ApiResponse.Fail("Invalid or missing user ID in token.")` — when the JWT is present but the `NameIdentifier` claim is missing or not a valid Guid. Other controllers instead surface this as a thrown `UnauthorizedAccessException` handled by the global exception middleware.
+
 **Delete project:** `403` when caller is not owner; `404` when not found.
 
 **List members:** returns `404 "Project not found."` both when the project is missing AND when the caller is not a member. Frontend maps this to "This project no longer exists."
@@ -396,7 +398,7 @@ Returned by `POST /api/attachment/task/{taskId}` and as the payload of the `Asse
 
 **`AttachmentDeletedEventDto`** — payload of `AttachmentDeleted`
 
-Emitted as an anonymous object from `AttachmentController.DeleteAttachment`; the shape on the wire is:
+Emitted as an anonymous object from `AttachmentController.DeleteFile` (there is no C# `AttachmentDeletedEventDto` record — the payload is built inline). The shape on the wire is:
 
 | JSON property | Type | Notes |
 |---------------|------|--------|
