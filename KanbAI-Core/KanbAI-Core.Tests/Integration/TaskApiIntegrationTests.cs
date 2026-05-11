@@ -3,11 +3,13 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using FluentAssertions;
+using KanbAI_Core.Data;
 using KanbAI_Core.DTOs;
 using KanbAI_Core.Tests.Fixtures;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -260,9 +262,211 @@ public class TaskApiIntegrationTests : IClassFixture<CustomWebApplicationFactory
 
     #endregion
 
+    #region DeleteTask Integration Tests
+
+    [Fact]
+    public async Task DeleteTask_Unauthenticated_Returns401()
+    {
+        // Arrange
+        var client = CreateUnauthenticatedClient();
+        var taskId = Guid.NewGuid();
+
+        // Act
+        var response = await client.DeleteAsync($"/api/task/{taskId}");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task DeleteTask_NonExistentTask_Returns404()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var client = CreateAuthenticatedClient(userId, Guid.NewGuid().ToString());
+        var nonExistentTaskId = Guid.NewGuid();
+
+        // Act
+        var response = await client.DeleteAsync($"/api/task/{nonExistentTaskId}");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse>();
+        apiResponse.Should().NotBeNull();
+        apiResponse!.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("Task not found.");
+    }
+
+    [Fact]
+    public async Task DeleteTask_Idempotent_SecondCallReturns404()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var client = CreateAuthenticatedClient(userId, Guid.NewGuid().ToString());
+        var taskId = Guid.NewGuid();
+
+        // Act - First delete
+        var firstResponse = await client.DeleteAsync($"/api/task/{taskId}");
+
+        // Act - Second delete of same task
+        var secondResponse = await client.DeleteAsync($"/api/task/{taskId}");
+
+        // Assert
+        // First call should return 404 (task doesn't exist in test)
+        // Second call should also return 404
+        firstResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        secondResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task DeleteTask_MemberDeletesExistingTask_Returns204AndRemovesTask()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var databaseName = Guid.NewGuid().ToString();
+        var projectId = Guid.NewGuid();
+        var columnId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
+
+        await SeedProjectWithTaskAsync(databaseName, userId, projectId, columnId, taskId);
+
+        var client = CreateAuthenticatedClient(userId, databaseName);
+
+        // Act
+        var response = await client.DeleteAsync($"/api/task/{taskId}");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().BeEmpty();
+
+        await using var verifyContext = CreateContextForDb(databaseName);
+        (await verifyContext.KanbanTasks.FindAsync(taskId)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DeleteTask_NonMemberDeletesTask_Returns403WithStructuredError()
+    {
+        // Arrange
+        var ownerId = Guid.NewGuid();
+        var outsiderId = Guid.NewGuid();
+        var databaseName = Guid.NewGuid().ToString();
+        var projectId = Guid.NewGuid();
+        var columnId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
+
+        await SeedProjectWithTaskAsync(databaseName, ownerId, projectId, columnId, taskId);
+
+        var client = CreateAuthenticatedClient(outsiderId, databaseName);
+
+        // Act
+        var response = await client.DeleteAsync($"/api/task/{taskId}");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse>();
+        apiResponse.Should().NotBeNull();
+        apiResponse!.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("You are not a member of this project.");
+        apiResponse.Errors.Should().BeEmpty();
+
+        await using var verifyContext = CreateContextForDb(databaseName);
+        (await verifyContext.KanbanTasks.FindAsync(taskId)).Should().NotBeNull(
+            "the task must not be deleted when the caller is not a project member");
+    }
+
+    [Fact]
+    public async Task DeleteTask_TwoDeletesInARow_FirstReturns204ThenSecondReturns404()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var databaseName = Guid.NewGuid().ToString();
+        var projectId = Guid.NewGuid();
+        var columnId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
+
+        await SeedProjectWithTaskAsync(databaseName, userId, projectId, columnId, taskId);
+
+        var client = CreateAuthenticatedClient(userId, databaseName);
+
+        // Act
+        var firstResponse = await client.DeleteAsync($"/api/task/{taskId}");
+        var secondResponse = await client.DeleteAsync($"/api/task/{taskId}");
+
+        // Assert
+        firstResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        secondResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var secondBody = await secondResponse.Content.ReadFromJsonAsync<ApiResponse>();
+        secondBody!.Message.Should().Be("Task not found.");
+    }
+
+    #endregion
+
+    #region Seed Helpers
+
+    private static async Task SeedProjectWithTaskAsync(
+        string databaseName,
+        Guid ownerUserId,
+        Guid projectId,
+        Guid columnId,
+        Guid taskId)
+    {
+        await using var context = CreateContextForDb(databaseName);
+
+        context.Users.Add(new KanbAI_Core.Models.Entities.User
+        {
+            Id = ownerUserId,
+            Name = "Owner",
+            Email = $"owner-{ownerUserId}@example.com",
+            PasswordHash = "hash"
+        });
+
+        context.Projects.Add(new KanbAI_Core.Models.Entities.Project
+        {
+            Id = projectId,
+            Name = "Integration Test Project"
+        });
+
+        context.ProjectMembers.Add(new KanbAI_Core.Models.Entities.ProjectMember
+        {
+            ProjectId = projectId,
+            UserId = ownerUserId,
+            Role = KanbAI_Core.Models.Enums.ProjectRole.Owner
+        });
+
+        context.BoardColumns.Add(new KanbAI_Core.Models.Entities.BoardColumn
+        {
+            Id = columnId,
+            Name = "To Do",
+            ColumnOrder = 0,
+            ProjectId = projectId
+        });
+
+        context.KanbanTasks.Add(new KanbAI_Core.Models.Entities.KanbanTask
+        {
+            Id = taskId,
+            Title = "Task to delete",
+            TaskOrder = 0,
+            ColumnId = columnId
+        });
+
+        await context.SaveChangesAsync();
+    }
+
+    private static ApplicationDbContext CreateContextForDb(string databaseName)
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName)
+            .Options;
+        return new ApplicationDbContext(options);
+    }
+
+    #endregion
+
     #region Test Infrastructure
 
-    private HttpClient CreateAuthenticatedClient(Guid userId)
+    private HttpClient CreateAuthenticatedClient(Guid userId, string? inMemoryDatabaseName = null)
     {
         return _factory.WithWebHostBuilder(builder =>
         {
@@ -281,6 +485,23 @@ public class TaskApiIntegrationTests : IClassFixture<CustomWebApplicationFactory
                         options => options.UserId = userId);
 
                 services.AddAuthorization(options => options.FallbackPolicy = null);
+
+                if (inMemoryDatabaseName != null)
+                {
+                    var dbContextDescriptors = services
+                        .Where(d => d.ServiceType == typeof(DbContextOptions<ApplicationDbContext>)
+                                 || d.ServiceType == typeof(DbContextOptions)
+                                 || d.ServiceType == typeof(ApplicationDbContext)
+                                 || (d.ServiceType.FullName?.StartsWith("Microsoft.EntityFrameworkCore") ?? false))
+                        .ToList();
+                    foreach (var descriptor in dbContextDescriptors)
+                    {
+                        services.Remove(descriptor);
+                    }
+
+                    services.AddDbContext<ApplicationDbContext>(options =>
+                        options.UseInMemoryDatabase(inMemoryDatabaseName));
+                }
             });
         }).CreateClient();
     }

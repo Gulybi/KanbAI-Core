@@ -144,6 +144,30 @@ public sealed class TaskController : ControllerBase
         return Ok(ApiResponse<List<TaskResponseDto>>.Ok(tasks, "Tasks retrieved successfully."));
     }
 
+    [HttpDelete("{taskId}")]
+    public async Task<IActionResult> DeleteTask(Guid taskId)
+    {
+        var userId = GetCurrentUserId();
+
+        var result = await _taskService.DeleteTaskAsync(taskId, userId);
+
+        return result switch
+        {
+            DeleteTaskResult.Success =>
+                NoContent(),
+            DeleteTaskResult.TaskNotFound =>
+                NotFound(ApiResponse.Fail("Task not found.")),
+            DeleteTaskResult.UserNotProjectMember =>
+                StatusCode(StatusCodes.Status403Forbidden,
+                    ApiResponse.Fail("You are not a member of this project.")),
+            DeleteTaskResult.UnexpectedError =>
+                StatusCode(StatusCodes.Status500InternalServerError,
+                    ApiResponse.Fail("An unexpected error occurred.")),
+            _ => StatusCode(StatusCodes.Status500InternalServerError,
+                     ApiResponse.Fail("Unexpected error."))
+        };
+    }
+
     private Guid GetCurrentUserId()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;

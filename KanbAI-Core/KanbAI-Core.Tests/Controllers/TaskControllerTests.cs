@@ -770,4 +770,100 @@ public class TaskControllerTests
     }
 
     #endregion
+
+    #region DeleteTask HTTP Mapping Tests
+
+    [Fact]
+    public async Task DeleteTask_ServiceReturnsSuccess_Returns204NoContent()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        _taskServiceMock
+            .Setup(s => s.DeleteTaskAsync(taskId, userId))
+            .ReturnsAsync(DeleteTaskResult.Success);
+
+        // Act
+        var result = await _controller.DeleteTask(taskId);
+
+        // Assert
+        var noContentResult = result.Should().BeOfType<NoContentResult>().Subject;
+        noContentResult.StatusCode.Should().Be(204);
+    }
+
+    [Fact]
+    public async Task DeleteTask_ServiceReturnsTaskNotFound_Returns404()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        _taskServiceMock
+            .Setup(s => s.DeleteTaskAsync(taskId, userId))
+            .ReturnsAsync(DeleteTaskResult.TaskNotFound);
+
+        // Act
+        var result = await _controller.DeleteTask(taskId);
+
+        // Assert
+        var notFound = result.Should().BeOfType<NotFoundObjectResult>().Subject;
+        notFound.StatusCode.Should().Be(404);
+
+        var apiResponse = notFound.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("Task not found.");
+    }
+
+    [Fact]
+    public async Task DeleteTask_ServiceReturnsUserNotProjectMember_Returns403()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        _taskServiceMock
+            .Setup(s => s.DeleteTaskAsync(taskId, userId))
+            .ReturnsAsync(DeleteTaskResult.UserNotProjectMember);
+
+        // Act
+        var result = await _controller.DeleteTask(taskId);
+
+        // Assert
+        var forbidden = result.Should().BeOfType<ObjectResult>().Subject;
+        forbidden.StatusCode.Should().Be(403);
+
+        var apiResponse = forbidden.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("You are not a member of this project.");
+    }
+
+    [Fact]
+    public async Task DeleteTask_ServiceReturnsUnexpectedError_Returns500()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var taskId = Guid.NewGuid();
+        SetupUserClaims(userId);
+
+        _taskServiceMock
+            .Setup(s => s.DeleteTaskAsync(taskId, userId))
+            .ReturnsAsync(DeleteTaskResult.UnexpectedError);
+
+        // Act
+        var result = await _controller.DeleteTask(taskId);
+
+        // Assert
+        var serverError = result.Should().BeOfType<ObjectResult>().Subject;
+        serverError.StatusCode.Should().Be(500);
+
+        var apiResponse = serverError.Value.Should().BeOfType<ApiResponse>().Subject;
+        apiResponse.Success.Should().BeFalse();
+        apiResponse.Message.Should().Be("An unexpected error occurred.");
+    }
+
+    #endregion
 }
