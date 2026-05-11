@@ -62,4 +62,22 @@ public interface ITaskService
     /// Returns an empty list when the project exists, the user is a member, but the project has no tasks.
     /// </returns>
     Task<List<TaskResponseDto>?> GetProjectTasksAsync(Guid projectId, Guid userId);
+
+    /// <summary>
+    /// Deletes a task and all associated attachments (database rows and physical files).
+    /// Authorization: the caller must be a member of the project that owns the task.
+    /// Cascade behavior:
+    /// - All Asset rows associated with the task are deleted via EF Core cascade (DeleteBehavior.Cascade).
+    /// - All TaskComment rows associated with the task are deleted via EF Core cascade.
+    /// - Physical attachment files are explicitly deleted from disk before the database transaction commits.
+    /// SignalR broadcast:
+    /// - Emits TaskDeleted event to group project_{projectId} after successful deletion.
+    /// Error handling:
+    /// - If any physical file deletion fails (locked file, permission error), the operation aborts and returns DeleteTaskResult.UnexpectedError.
+    /// - If a physical file does not exist (orphaned DB record), a warning is logged and the operation continues (cleanup case).
+    /// </summary>
+    /// <param name="taskId">The ID of the task to delete.</param>
+    /// <param name="userId">The authenticated user's ID (from JWT claims).</param>
+    /// <returns>A <see cref="DeleteTaskResult"/> discriminator indicating success or failure reason.</returns>
+    Task<DeleteTaskResult> DeleteTaskAsync(Guid taskId, Guid userId);
 }

@@ -2,12 +2,15 @@ using FluentAssertions;
 using KanbAI_Core.Data;
 using KanbAI_Core.DTOs;
 using KanbAI_Core.Hubs;
+using KanbAI_Core.Models.Configuration;
 using KanbAI_Core.Models.Entities;
 using KanbAI_Core.Models.Enums;
 using KanbAI_Core.Services.Tasks;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 
 namespace KanbAI_Core.Tests.Services.Tasks;
@@ -15,6 +18,20 @@ namespace KanbAI_Core.Tests.Services.Tasks;
 public class TaskServiceBroadcastTests
 {
     private readonly Mock<ILogger<TaskService>> _loggerMock = new();
+    private readonly Mock<IWebHostEnvironment> _environmentMock;
+    private readonly IOptions<FileStorageOptions> _storageOptions;
+
+    public TaskServiceBroadcastTests()
+    {
+        _environmentMock = new Mock<IWebHostEnvironment>();
+        _environmentMock.Setup(e => e.ContentRootPath).Returns(Path.GetTempPath());
+        _storageOptions = Options.Create(new FileStorageOptions
+        {
+            StoragePath = "wwwroot/uploads",
+            MaxFileSizeBytes = 10485760,
+            AllowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".pdf" }
+        });
+    }
 
     #region CreateTaskAsync Broadcast Tests
 
@@ -26,7 +43,7 @@ public class TaskServiceBroadcastTests
         var (clients, clientProxy, hubContext) = CreateHubContextMock();
         var userId = Guid.NewGuid();
         var (projectId, columnId) = await SeedProjectWithColumnAsync(context, userId);
-        var service = new TaskService(context, _loggerMock.Object, hubContext.Object);
+        var service = new TaskService(context, _loggerMock.Object, hubContext.Object, _environmentMock.Object, _storageOptions);
 
         var dto = new CreateTaskDto { Title = "Broadcast Me" };
 
@@ -55,7 +72,7 @@ public class TaskServiceBroadcastTests
         var (clients, clientProxy, hubContext) = CreateHubContextMock();
         var userId = Guid.NewGuid();
         var (_, columnId) = await SeedProjectWithColumnAsync(context, userId);
-        var service = new TaskService(context, _loggerMock.Object, hubContext.Object);
+        var service = new TaskService(context, _loggerMock.Object, hubContext.Object, _environmentMock.Object, _storageOptions);
 
         var dto = new CreateTaskDto { Title = "   " };
 
@@ -74,7 +91,7 @@ public class TaskServiceBroadcastTests
         // Arrange
         var context = CreateInMemoryContext();
         var (clients, clientProxy, hubContext) = CreateHubContextMock();
-        var service = new TaskService(context, _loggerMock.Object, hubContext.Object);
+        var service = new TaskService(context, _loggerMock.Object, hubContext.Object, _environmentMock.Object, _storageOptions);
 
         // Act
         var (data, result) = await service.CreateTaskAsync(
@@ -97,7 +114,7 @@ public class TaskServiceBroadcastTests
         var memberId = Guid.NewGuid();
         var outsiderId = Guid.NewGuid();
         var (_, columnId) = await SeedProjectWithColumnAsync(context, memberId);
-        var service = new TaskService(context, _loggerMock.Object, hubContext.Object);
+        var service = new TaskService(context, _loggerMock.Object, hubContext.Object, _environmentMock.Object, _storageOptions);
 
         // Act
         var (data, result) = await service.CreateTaskAsync(
@@ -126,7 +143,7 @@ public class TaskServiceBroadcastTests
 
         var userId = Guid.NewGuid();
         var (_, columnId) = await SeedProjectWithColumnAsync(context, userId);
-        var service = new TaskService(context, _loggerMock.Object, hubContext.Object);
+        var service = new TaskService(context, _loggerMock.Object, hubContext.Object, _environmentMock.Object, _storageOptions);
 
         // Act
         var (data, result) = await service.CreateTaskAsync(
@@ -159,7 +176,7 @@ public class TaskServiceBroadcastTests
             new KanbanTask { Id = Guid.NewGuid(), Title = "X", TaskOrder = 0, ColumnId = targetColumnId });
         await context.SaveChangesAsync();
 
-        var service = new TaskService(context, _loggerMock.Object, hubContext.Object);
+        var service = new TaskService(context, _loggerMock.Object, hubContext.Object, _environmentMock.Object, _storageOptions);
         var dto = new MoveTaskDto { ColumnId = targetColumnId, TaskOrder = 1 };
 
         // Act
@@ -203,7 +220,7 @@ public class TaskServiceBroadcastTests
             new KanbanTask { Id = Guid.NewGuid(), Title = "C", TaskOrder = 2, ColumnId = columnId });
         await context.SaveChangesAsync();
 
-        var service = new TaskService(context, _loggerMock.Object, hubContext.Object);
+        var service = new TaskService(context, _loggerMock.Object, hubContext.Object, _environmentMock.Object, _storageOptions);
         var dto = new MoveTaskDto { ColumnId = columnId, TaskOrder = 2 };
 
         // Act
@@ -240,7 +257,7 @@ public class TaskServiceBroadcastTests
             new KanbanTask { Id = movedTaskId, Title = "A", TaskOrder = 0, ColumnId = columnId });
         await context.SaveChangesAsync();
 
-        var service = new TaskService(context, _loggerMock.Object, hubContext.Object);
+        var service = new TaskService(context, _loggerMock.Object, hubContext.Object, _environmentMock.Object, _storageOptions);
         var dto = new MoveTaskDto { ColumnId = columnId, TaskOrder = 0 };
 
         // Act
@@ -267,7 +284,7 @@ public class TaskServiceBroadcastTests
             new KanbanTask { Id = movedTaskId, Title = "A", TaskOrder = 0, ColumnId = sourceColumnId });
         await context.SaveChangesAsync();
 
-        var service = new TaskService(context, _loggerMock.Object, hubContext.Object);
+        var service = new TaskService(context, _loggerMock.Object, hubContext.Object, _environmentMock.Object, _storageOptions);
         var dto = new MoveTaskDto { ColumnId = otherProjectColumnId, TaskOrder = 0 };
 
         // Act
@@ -300,7 +317,7 @@ public class TaskServiceBroadcastTests
             new KanbanTask { Id = movedTaskId, Title = "A", TaskOrder = 0, ColumnId = sourceColumnId });
         await context.SaveChangesAsync();
 
-        var service = new TaskService(context, _loggerMock.Object, hubContext.Object);
+        var service = new TaskService(context, _loggerMock.Object, hubContext.Object, _environmentMock.Object, _storageOptions);
         var dto = new MoveTaskDto { ColumnId = targetColumnId, TaskOrder = 0 };
 
         // Act
@@ -328,7 +345,7 @@ public class TaskServiceBroadcastTests
             new KanbanTask { Id = movedTaskId, Title = "A", TaskOrder = 0, ColumnId = sourceColumnId });
         await context.SaveChangesAsync();
 
-        var service = new TaskService(context, _loggerMock.Object, hubContext.Object);
+        var service = new TaskService(context, _loggerMock.Object, hubContext.Object, _environmentMock.Object, _storageOptions);
         var dto = new MoveTaskDto { ColumnId = targetColumnId, TaskOrder = 0 };
 
         // Act
@@ -336,6 +353,234 @@ public class TaskServiceBroadcastTests
 
         // Assert
         result.Should().Be(MoveTaskResult.Success);
+
+        var expectedGroup = $"project_{projectId.ToString().ToLowerInvariant()}";
+        clients.Verify(c => c.Group(expectedGroup), Times.Once);
+        clients.Verify(c => c.Group(It.Is<string>(s => s != expectedGroup)), Times.Never);
+    }
+
+    #endregion
+
+    #region DeleteTaskAsync Broadcast Tests
+
+    [Fact]
+    public async Task DeleteTaskAsync_Success_BroadcastsTaskDeletedToProjectGroup()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var (clients, clientProxy, hubContext) = CreateHubContextMock();
+        var userId = Guid.NewGuid();
+        var (projectId, columnId) = await SeedProjectWithColumnAsync(context, userId);
+
+        var taskId = Guid.NewGuid();
+        context.KanbanTasks.Add(new KanbanTask
+        {
+            Id = taskId,
+            Title = "Doomed",
+            TaskOrder = 0,
+            ColumnId = columnId
+        });
+        await context.SaveChangesAsync();
+
+        var service = new TaskService(
+            context,
+            _loggerMock.Object,
+            hubContext.Object,
+            _environmentMock.Object,
+            _storageOptions);
+
+        // Act
+        var result = await service.DeleteTaskAsync(taskId, userId);
+
+        // Assert
+        result.Should().Be(DeleteTaskResult.Success);
+
+        var expectedGroup = $"project_{projectId.ToString().ToLowerInvariant()}";
+        clients.Verify(c => c.Group(expectedGroup), Times.Once);
+        clientProxy.Verify(
+            p => p.SendCoreAsync(
+                "TaskDeleted",
+                It.Is<object[]>(args =>
+                    args.Length == 1 &&
+                    args[0] is TaskDeletedEventDto &&
+                    ((TaskDeletedEventDto)args[0]).TaskId == taskId.ToString() &&
+                    ((TaskDeletedEventDto)args[0]).ColumnId == columnId.ToString()),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteTaskAsync_TaskNotFound_DoesNotBroadcast()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var (clients, clientProxy, hubContext) = CreateHubContextMock();
+        var service = new TaskService(
+            context,
+            _loggerMock.Object,
+            hubContext.Object,
+            _environmentMock.Object,
+            _storageOptions);
+
+        // Act
+        var result = await service.DeleteTaskAsync(Guid.NewGuid(), Guid.NewGuid());
+
+        // Assert
+        result.Should().Be(DeleteTaskResult.TaskNotFound);
+        VerifyNoBroadcast(clients, clientProxy);
+    }
+
+    [Fact]
+    public async Task DeleteTaskAsync_UserNotProjectMember_DoesNotBroadcast()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var (clients, clientProxy, hubContext) = CreateHubContextMock();
+        var memberId = Guid.NewGuid();
+        var outsiderId = Guid.NewGuid();
+        var (_, columnId) = await SeedProjectWithColumnAsync(context, memberId);
+
+        var taskId = Guid.NewGuid();
+        context.KanbanTasks.Add(new KanbanTask
+        {
+            Id = taskId,
+            Title = "Safe",
+            TaskOrder = 0,
+            ColumnId = columnId
+        });
+        await context.SaveChangesAsync();
+
+        var service = new TaskService(
+            context,
+            _loggerMock.Object,
+            hubContext.Object,
+            _environmentMock.Object,
+            _storageOptions);
+
+        // Act
+        var result = await service.DeleteTaskAsync(taskId, outsiderId);
+
+        // Assert
+        result.Should().Be(DeleteTaskResult.UserNotProjectMember);
+        VerifyNoBroadcast(clients, clientProxy);
+    }
+
+    [Fact]
+    public async Task DeleteTaskAsync_PathTraversal_DoesNotBroadcast()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var (clients, clientProxy, hubContext) = CreateHubContextMock();
+        var userId = Guid.NewGuid();
+        var (_, columnId) = await SeedProjectWithColumnAsync(context, userId);
+
+        var task = new KanbanTask
+        {
+            Id = Guid.NewGuid(),
+            Title = "Malicious",
+            TaskOrder = 0,
+            ColumnId = columnId
+        };
+        context.KanbanTasks.Add(task);
+        context.Assets.Add(new Asset
+        {
+            KanbanTaskId = task.Id,
+            StorageKey = "../../../etc/passwd",
+            FileName = "evil.txt",
+            MimeType = "text/plain",
+            FileSize = 1,
+            ProcessingStatus = ProcessingStatus.Completed
+        });
+        await context.SaveChangesAsync();
+
+        var service = new TaskService(
+            context,
+            _loggerMock.Object,
+            hubContext.Object,
+            _environmentMock.Object,
+            _storageOptions);
+
+        // Act
+        var result = await service.DeleteTaskAsync(task.Id, userId);
+
+        // Assert
+        result.Should().Be(DeleteTaskResult.UnexpectedError);
+        VerifyNoBroadcast(clients, clientProxy);
+    }
+
+    [Fact]
+    public async Task DeleteTaskAsync_BroadcastThrows_StillReturnsSuccessAndPersistsDeletion()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var (_, clientProxy, hubContext) = CreateHubContextMock();
+        clientProxy
+            .Setup(p => p.SendCoreAsync(
+                It.IsAny<string>(),
+                It.IsAny<object[]>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Simulated hub failure"));
+
+        var userId = Guid.NewGuid();
+        var (_, columnId) = await SeedProjectWithColumnAsync(context, userId);
+
+        var taskId = Guid.NewGuid();
+        context.KanbanTasks.Add(new KanbanTask
+        {
+            Id = taskId,
+            Title = "Task",
+            TaskOrder = 0,
+            ColumnId = columnId
+        });
+        await context.SaveChangesAsync();
+
+        var service = new TaskService(
+            context,
+            _loggerMock.Object,
+            hubContext.Object,
+            _environmentMock.Object,
+            _storageOptions);
+
+        // Act
+        var result = await service.DeleteTaskAsync(taskId, userId);
+
+        // Assert
+        result.Should().Be(DeleteTaskResult.Success);
+        (await context.KanbanTasks.FindAsync(taskId)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DeleteTaskAsync_Success_BroadcastsOnlyToOwningProjectGroup()
+    {
+        // Arrange
+        var context = CreateInMemoryContext();
+        var (clients, _, hubContext) = CreateHubContextMock();
+        var userId = Guid.NewGuid();
+        var (projectId, columnId) = await SeedProjectWithColumnAsync(context, userId);
+        var otherColumnId = await SeedSecondProjectWithColumnAsync(context, userId);
+
+        var taskId = Guid.NewGuid();
+        context.KanbanTasks.Add(new KanbanTask
+        {
+            Id = taskId,
+            Title = "Task",
+            TaskOrder = 0,
+            ColumnId = columnId
+        });
+        await context.SaveChangesAsync();
+
+        var service = new TaskService(
+            context,
+            _loggerMock.Object,
+            hubContext.Object,
+            _environmentMock.Object,
+            _storageOptions);
+
+        // Act
+        var result = await service.DeleteTaskAsync(taskId, userId);
+
+        // Assert
+        result.Should().Be(DeleteTaskResult.Success);
 
         var expectedGroup = $"project_{projectId.ToString().ToLowerInvariant()}";
         clients.Verify(c => c.Group(expectedGroup), Times.Once);

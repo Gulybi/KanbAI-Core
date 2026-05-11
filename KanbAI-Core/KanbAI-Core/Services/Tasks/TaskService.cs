@@ -3,25 +3,33 @@ namespace KanbAI_Core.Services.Tasks;
 using KanbAI_Core.Data;
 using KanbAI_Core.DTOs;
 using KanbAI_Core.Hubs;
+using KanbAI_Core.Models.Configuration;
 using KanbAI_Core.Models.Entities;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 public sealed class TaskService : ITaskService
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<TaskService> _logger;
     private readonly IHubContext<KanbanHub> _hubContext;
+    private readonly IWebHostEnvironment _environment;
+    private readonly FileStorageOptions _storageOptions;
 
     public TaskService(
         ApplicationDbContext context,
         ILogger<TaskService> logger,
-        IHubContext<KanbanHub> hubContext)
+        IHubContext<KanbanHub> hubContext,
+        IWebHostEnvironment environment,
+        IOptions<FileStorageOptions> storageOptions)
     {
         _context = context;
         _logger = logger;
         _hubContext = hubContext;
+        _environment = environment;
+        _storageOptions = storageOptions.Value;
     }
 
     public async Task<(TaskResponseDto? data, CreateTaskResult result)> CreateTaskAsync(
@@ -416,6 +424,92 @@ public sealed class TaskService : ITaskService
             userId, tasks.Count, projectId);
 
         return tasks.Select(MapToDto).ToList();
+    }
+
+    public async Task<DeleteTaskResult> DeleteTaskAsync(Guid taskId, Guid userId)
+    {
+        try
+        {
+            var task = await _context.KanbanTasks
+                .Include(t => t.Column)
+                    .ThenInclude(c => c.Project)
+                        .ThenInclude(p => p.Members)
+                .Include(t => t.Assets)
+                .FirstOrDefaultAsync(t => t.Id == taskId);
+
+            if (task == null)
+            {
+                _logger.LogWarning("Task {TaskId} not found", taskId);
+                return DeleteTaskResult.TaskNotFound;
+            }
+
+            var isMember = task.Column.Project.Members.Any(m => m.UserId == userId);
+            if (!isMember)
+            {
+                _logger.LogWarning("User {UserId} attempted to delete task {TaskId} without project membership", userId, taskId);
+                return DeleteTaskResult.UserNotProjectMember;
+            }
+
+            if (task.Assets.Count > 0)
+            {
+                var storageRoot = Path.Combine(_environment.ContentRootPath, _storageOptions.StoragePath);
+
+                foreach (var asset in task.Assets)
+                {
+                    var filePath = Path.Combine(storageRoot, asset.StorageKey);
+
+                    var normalizedStorageRoot = Path.GetFullPath(storageRoot);
+                    var normalizedFilePath = Path.GetFullPath(filePath);
+                    if (!normalizedFilePath.StartsWith(normalizedStorageRoot, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _logger.LogError("Path traversal detected: {FilePath} escapes {StorageRoot}", normalizedFilePath, normalizedStorageRoot);
+                        return DeleteTaskResult.UnexpectedError;
+                    }
+
+                    try
+                    {
+                        if (File.Exists(filePath))
+                        {
+                            File.Delete(filePath);
+                            _logger.LogInformation("Deleted physical file {FilePath} for asset {AssetId}", filePath, asset.Id);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("Physical file {FilePath} does not exist for asset {AssetId} (orphaned DB record)", filePath, asset.Id);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to delete physical file {FilePath} for asset {AssetId}", filePath, asset.Id);
+                        return DeleteTaskResult.UnexpectedError;
+                    }
+                }
+            }
+
+            var columnId = task.ColumnId;
+            var projectId = task.Column.ProjectId;
+
+            _context.KanbanTasks.Remove(task);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("User {UserId} deleted task {TaskId} from column {ColumnId}", userId, taskId, columnId);
+
+            await BroadcastAsync(
+                BuildProjectGroupName(projectId),
+                "TaskDeleted",
+                new TaskDeletedEventDto
+                {
+                    TaskId = taskId.ToString(),
+                    ColumnId = columnId.ToString()
+                });
+
+            return DeleteTaskResult.Success;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error deleting task {TaskId}", taskId);
+            return DeleteTaskResult.UnexpectedError;
+        }
     }
 
     private static string BuildProjectGroupName(Guid projectId) =>
